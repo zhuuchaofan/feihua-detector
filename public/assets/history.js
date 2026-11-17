@@ -94,6 +94,7 @@
         <div class="big"><div class="pct">${Math.round(r.pct)}<small>%</small></div><div class="grade">${esc(lv.name)}</div></div>
         <div><h2 class="review-title">${esc(rv.title || r.title)}</h2>${rv.one_liner ? `<p style="margin:4px 0 0;font-weight:700">${esc(rv.one_liner)}</p>` : ''}</div>
       </div>
+      ${rv.checkup ? `<div><div class="label" style="margin-bottom:8px">会议体检</div>${F.checkupHTML(rv.checkup)}</div>` : ''}
       ${rv.roast ? `<p class="roast">${esc(rv.roast)}</p>` : ''}
       ${r.review ? `<div class="grid2"><div><div class="label">有用的结论</div>${li(rv.takeaways)}</div><div><div class="label">待办</div>${todos}</div></div>` : ''}
       <div class="label">逐句标注</div>
@@ -102,7 +103,7 @@
     $('d-md').onclick = () => { Sh.exportMarkdown(r, a); Site.toast('纪要已导出为 Markdown'); };
     $('d-card').onclick = async () => {
       try {
-        const how = await Sh.shareCard({ title: r.title, at: r.at, duration: r.duration, pct: r.pct, rulePct: a.rulePct, aiPct: a.aiPct, oneLiner: rv.one_liner, king: rv.king, mvp: rv.mvp, judged: a.coverage.judged, topWords: r.topWords });
+        const how = await Sh.shareCard({ title: r.title, at: r.at, duration: r.duration, pct: r.pct, rulePct: a.rulePct, aiPct: a.aiPct, oneLiner: rv.one_liner, king: rv.king, mvp: rv.mvp, checkup: rv.checkup, judged: a.coverage.judged, topWords: r.topWords });
         if (how === 'downloaded') Site.toast('化验单图片已下载');
       } catch { Site.toast('生成图片失败，再试一次'); }
     };

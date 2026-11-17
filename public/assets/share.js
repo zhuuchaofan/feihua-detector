@@ -20,7 +20,8 @@
     const tokens = String(text).match(/[A-Za-z0-9%.\-]+|\s+|./gu) || [];
     const lines = []; let cur = '';
     for (const t of tokens) {
-      if (ctx.measureText(cur + t).width > maxW && cur) { lines.push(cur); cur = t.trimStart(); if (lines.length === maxLines) break; }
+      // 句号逗号这类标点不放到行首，宁可让上一行稍微超出一点
+      if (ctx.measureText(cur + t).width > maxW && cur && !/^[，。！？、；：”’）》」』…,.!?;:)]$/.test(t)) { lines.push(cur); cur = t.trimStart(); if (lines.length === maxLines) break; }
       else cur += t;
     }
     if (lines.length < maxLines && cur) lines.push(cur);
@@ -44,7 +45,7 @@
   }
 
   /**
-   * data: { title, at, duration, pct, rulePct, aiPct, oneLiner, king, mvp, topWords: [[w, n]], sentences, judged }
+   * data: { title, at, duration, pct, rulePct, aiPct, oneLiner, king, mvp, checkup, topWords: [[w, n]], sentences, judged }
    */
   async function drawCard(data) {
     await ensureFonts();
@@ -105,9 +106,29 @@
     g.font = `700 40px ${body}`;
     for (const ln of wrap(g, data.oneLiner || F.LEVELS[lv].roasts[0], R - L - 40, 3)) { g.fillText(ln, L + 30, y); y += 56; }
 
-    // 颁奖
     y = Math.max(y + 40, 930);
     g.fillStyle = line; g.fillRect(L, y - 40, R - L, 2);
+
+    // 会议体检：四格，每格“问题 + 分数 + 五个圆点”
+    const ck = data.checkup ? F.CHECKUP.filter(([k]) => data.checkup[k]) : [];
+    if (ck.length) {
+      const cw = (R - L) / ck.length;
+      ck.forEach(([k, q], i) => {
+        const n = Math.min(5, Math.max(1, Math.round(Number(data.checkup[k].score) || 1)));
+        const col = n >= 4 ? '#2F9E6B' : n === 3 ? '#E2B11E' : '#D23F3F';
+        const x = L + i * cw;
+        g.font = `24px ${body}`; g.fillStyle = muted; g.fillText(q, x, y);
+        g.font = `700 52px ${mono}`; g.fillStyle = col; g.fillText(String(n), x, y + 66);
+        g.font = `24px ${mono}`; g.fillStyle = muted; g.fillText('/5', x + 34, y + 66);
+        for (let j = 0; j < 5; j++) {
+          g.beginPath(); g.arc(x + 9 + j * 26, y + 100, 9, 0, Math.PI * 2);
+          g.fillStyle = j < n ? col : '#FFFFFF'; g.fill(); g.strokeStyle = col; g.lineWidth = 2.5; g.stroke();
+        }
+      });
+      y += 170;
+    }
+
+    // 颁奖
     const award = (label, o, x) => {
       if (!o || !o.name) return;
       g.font = `24px ${body}`; g.fillStyle = muted; g.fillText(label, x, y);
@@ -117,8 +138,8 @@
     };
     if (data.king || data.mvp) { award('废话之王', data.king, L); award('干货担当', data.mvp, L + (R - L) / 2); y += 190; }
 
-    // 高频黑话
-    if (data.topWords && data.topWords.length) {
+    // 高频黑话（放不下就不画，别压到页脚）
+    if (data.topWords && data.topWords.length && y + 80 < H - 190) {
       g.font = `24px ${body}`; g.fillStyle = muted; g.fillText('高频黑话', L, y); y += 26;
       let x = L; g.font = `28px ${body}`;
       for (const [w, n] of data.topWords.slice(0, 6)) {
@@ -172,6 +193,11 @@
     if (r.todos && r.todos.length) {
       out.push('## 待办', '', '| 负责人 | 事项 | 时间 |', '| --- | --- | --- |');
       for (const t of r.todos) out.push(`| ${t.who || '未指定'} | ${String(t.what || '').replace(/\|/g, '/')} | ${t.when || '未定'} |`);
+      out.push('');
+    }
+    if (r.checkup) {
+      out.push('## 会议体检', '', '| 项目 | 得分 | 理由 |', '| --- | --- | --- |');
+      for (const [k, q] of F.CHECKUP) if (r.checkup[k]) out.push(`| ${q} | ${r.checkup[k].score}/5 | ${String(r.checkup[k].why || '').replace(/\|/g, '/')} |`);
       out.push('');
     }
     if (r.roast) out.push('## AI 点评', '', `> ${r.roast}`, '');

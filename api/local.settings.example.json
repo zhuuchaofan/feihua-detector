@@ -6,6 +6,6 @@
     "SPEECH_REGION": "eastasia",
     "LLM_BASE_URL": "https://api.deepseek.com",
     "LLM_API_KEY": "",
-    "LLM_MODEL": "deepseek-chat"
+    "LLM_MODEL": "deepseek-flash"
   }
 }

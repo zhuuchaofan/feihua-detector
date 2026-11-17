@@ -68,6 +68,12 @@ const SAMPLE_DEMO = {
     mvp: { name: '小陈', reason: '一句话交代清楚时间人事' },
     roast: '这场会一共 14 句话，干货 3 句，全出自小陈一个人。王总开场“我简单说两句”，然后说了六句；“形成闭环”出现三次，翻译成人话就是“我也不知道下一步干啥，但听起来很专业”。李经理负责把颗粒度细化、把组合拳打出来，可惜拳头打在了空气上。全场最关键的问题“接口文档谁来出”被一句“下来再讨论”轻轻送走，这个闭环，确实闭得很严实，严实到连责任都出不来。',
     one_liner: '开了一场会，确认了三件事：闭环、闭环、和闭环。',
+    checkup: {
+      推进: { score: 2, why: '只有登录页定了，其余都在“拉通对齐”' },
+      解决: { score: 1, why: '“接口文档谁来出”被“下来再讨论”送走' },
+      清楚: { score: 2, why: '“形成闭环”说三遍，没一句具体安排' },
+      进度: { score: 3, why: '登录页周三上线，但还差两个接口' },
+    },
   },
 };
 
@@ -224,5 +230,30 @@ function demoFor(text) {
   return m;
 }
 
-window.Feihua = { LEVELS, SAMPLES, SAMPLE_DEMO, TAG_INFO, TAGS_GOOD, analyze, annotate, levelOf, keyOf, esc, buildLex, demoFor };
+// ---------- 会议体检：不只看黑话，还看会开得有没有用 ----------
+const CHECKUP = [
+  ['推进', '推进了吗', '有没有定结论、做决定、明确下一步'],
+  ['解决', '问题解决了吗', '冒出来的问题有没有解决，或定了谁来管'],
+  ['清楚', '说清楚了吗', '有没有说到具体的事、数字、人和时间'],
+  ['进度', '进度正常吗', '有没有延期、卡住、没人负责的事'],
+];
+/** 体检四项（1-5 分）→ 0-100 的“没用程度”，越高越水；没有体检时返回 null */
+function checkupWaste(c) {
+  const ns = CHECKUP.map(([k]) => Number(c && c[k] && c[k].score)).filter((n) => n >= 1 && n <= 5);
+  if (!ns.length) return null;
+  return Math.round((5 - ns.reduce((a, b) => a + b, 0) / ns.length) / 4 * 100);
+}
+function checkupHTML(c) {
+  if (!c) return '';
+  return '<div class="checkup">' + CHECKUP.filter(([k]) => c[k]).map(([k, q, hint]) => {
+    const n = Math.min(5, Math.max(1, Math.round(Number(c[k].score) || 1)));
+    const tone = n >= 4 ? 'ok' : n === 3 ? 'meh' : 'bad';
+    const pips = Array.from({ length: 5 }, (_, i) => `<i${i < n ? ' class="on"' : ''}></i>`).join('');
+    return `<div class="ck ck-${tone}"><div class="ck-q" title="${esc(hint)}">${esc(q)}</div>` +
+      `<div class="ck-score" aria-label="${n} 分，满分 5 分"><span class="pips" aria-hidden="true">${pips}</span><b>${n}</b><small>/5</small></div>` +
+      `<div class="ck-why">${esc(c[k].why || '')}</div></div>`;
+  }).join('') + '</div>';
+}
+
+window.Feihua = { LEVELS, SAMPLES, SAMPLE_DEMO, TAG_INFO, TAGS_GOOD, CHECKUP, analyze, annotate, levelOf, keyOf, esc, buildLex, demoFor, checkupWaste, checkupHTML };
 })();

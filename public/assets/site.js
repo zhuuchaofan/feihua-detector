@@ -6,7 +6,7 @@
   if (head) {
     head.className = 'site-head gutter';
     head.innerHTML = `<div class="wrap">
-      <a class="brand" href="/"><img src="/assets/favicon.svg" alt="">废话浓度检测器</a>
+      <a class="brand" href="/" aria-label="废话浓度检测器 首页"><img src="/assets/favicon.svg" alt=""><span class="brand-name">废话浓度检测器</span></a>
       <nav class="nav" aria-label="主导航">${links.map(([h, t]) => `<a href="${h}"${here === h ? ' aria-current="page"' : ''}>${t}</a>`).join('')}</nav>
       <div class="auth" id="auth"></div>
     </div>`;
@@ -23,18 +23,33 @@
     .then((d) => (d && d.clientPrincipal) || null)
     .catch(() => null);
 
+  // 下拉菜单：点按钮开关，点别处或按 Esc 收起
+  function dropdown(btn, menu) {
+    const set = (open) => { menu.hidden = !open; btn.setAttribute('aria-expanded', String(open)); };
+    btn.addEventListener('click', (e) => { e.stopPropagation(); set(menu.hidden); });
+    document.addEventListener('click', (e) => { if (!menu.contains(e.target)) set(false); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') set(false); });
+  }
+
+  // 登录后只显示一个圆形头像（账号首字母），完整账号和退出放进菜单，手机上顶栏才放得下一行
   function renderAuth(user) {
     const box = document.getElementById('auth');
     if (!box) return;
     if (user) {
-      box.innerHTML = `<span class="who" title="${esc(user.userDetails || '')}">${esc(user.userDetails || '已登录')}</span>
-        <a class="btn small quiet" href="/.auth/logout?post_logout_redirect_uri=${back}">退出</a>`;
+      const name = user.userDetails || '已登录';
+      const initial = (name.match(/[\p{L}\p{N}]/u) || ['我'])[0].toUpperCase();
+      const via = { aad: '微软账号', github: 'GitHub' }[user.identityProvider] || '已登录';
+      box.innerHTML = `<button class="avatar" id="btn-me" aria-expanded="false" aria-haspopup="true" aria-label="我的账号：${esc(name)}" title="${esc(name)}">${esc(initial)}</button>
+        <div class="menu" id="me-menu" hidden>
+          <p>${esc(via)}登录</p>
+          <div class="me-name">${esc(name)}</div>
+          <p>每天的录音和 AI 额度已经提高</p>
+          <a href="/.auth/logout?post_logout_redirect_uri=${back}">退出登录</a>
+        </div>`;
+      dropdown(document.getElementById('btn-me'), document.getElementById('me-menu'));
     } else {
       box.innerHTML = `<button class="btn small" id="btn-login" aria-expanded="false" aria-haspopup="true">登录</button><div class="menu" id="login-menu" hidden>${loginMenu}</div>`;
-      const btn = document.getElementById('btn-login'), menu = document.getElementById('login-menu');
-      btn.addEventListener('click', (e) => { e.stopPropagation(); menu.hidden = !menu.hidden; btn.setAttribute('aria-expanded', String(!menu.hidden)); });
-      document.addEventListener('click', (e) => { if (!menu.contains(e.target)) { menu.hidden = true; btn.setAttribute('aria-expanded', 'false'); } });
-      document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { menu.hidden = true; btn.setAttribute('aria-expanded', 'false'); } });
+      dropdown(document.getElementById('btn-login'), document.getElementById('login-menu'));
     }
   }
   me.then(renderAuth);

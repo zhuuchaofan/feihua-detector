@@ -1,7 +1,8 @@
 // 大模型调用：优先 OpenAI 兼容接口（DeepSeek、通义千问等），没配再用 Azure OpenAI
 //   LLM_BASE_URL  如 https://api.deepseek.com
 //   LLM_API_KEY   对应平台的 API Key
-//   LLM_MODEL     如 deepseek-chat
+//   LLM_MODEL     如 deepseek-flash
+//   LLM_EXTRA_BODY 可选，JSON，原样并进请求体；不填时 DeepSeek 默认关掉思考模式
 function providerConfig() {
   const base = (process.env.LLM_BASE_URL || '').replace(/\/+$/, '');
   if (base && process.env.LLM_API_KEY && process.env.LLM_MODEL) {
@@ -13,6 +14,19 @@ function providerConfig() {
   }
   return null;
 }
+
+// 额外请求参数。DeepSeek 新模型默认开思考模式：又慢又贵，还容易超过 45 秒时限，
+// 这里只要模型直接给 JSON，所以默认 {"thinking":{"type":"disabled"}}
+function extraBody(cfg, log) {
+  const raw = process.env.LLM_EXTRA_BODY;
+  if (raw) {
+    try { const v = JSON.parse(raw); if (v && typeof v === 'object' && !Array.isArray(v)) return v; } catch {}
+    log('LLM_EXTRA_BODY 不是合法的 JSON 对象，已忽略');
+  }
+  if (/(^|\.)deepseek\.com$/i.test(hostOf(cfg.url))) return { thinking: { type: 'disabled' } };
+  return {};
+}
+function hostOf(url) { try { return new URL(url).hostname; } catch { return ''; } }
 
 class LlmError extends Error {
   constructor(message, status) { super(message); this.status = status; }
@@ -40,6 +54,7 @@ async function chatJSON(system, user, { maxTokens = 1500, temperature = 0.8, tim
   } else {
     body.temperature = temperature;
     body.max_tokens = maxTokens;
+    Object.assign(body, extraBody(cfg, log));
   }
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
