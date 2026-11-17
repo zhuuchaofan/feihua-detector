@@ -83,6 +83,17 @@ td.num{font-family:var(--mono);text-align:right;font-variant-numeric:tabular-num
 .s-heavy{background:var(--hl-strong);border-radius:2px}
 .s-dup{background:var(--dup);border-radius:2px}
 .annot mark{background:none;color:inherit;font-weight:700;text-decoration:underline wavy var(--g5);text-underline-offset:4px;text-decoration-thickness:1.5px}
+.ai-2{background:rgba(47,158,107,.20);box-shadow:inset 0 -2px 0 var(--g1);border-radius:2px}
+.ai-1{background:var(--hl);border-radius:2px}
+.ai-0{background:var(--hl-strong);border-radius:2px;text-decoration:line-through;text-decoration-color:rgba(210,63,63,.55);text-decoration-thickness:1.5px}
+.ai-callout{font-size:12px;font-weight:700;color:var(--g5);margin-left:4px;white-space:normal}
+.ai-callout.good{color:var(--g1)}
+.seg{display:inline-flex;border:1px solid var(--ink);border-radius:4px;overflow:hidden}
+.seg button{border:0;border-radius:0;padding:3px 12px;font-size:13px}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--card)}
+.seg button:disabled{opacity:.4;cursor:not-allowed}
+.legend[hidden]{display:none}
+.annot-head{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center}
 .legend{display:flex;flex-wrap:wrap;gap:14px;font-size:12px;color:var(--muted)}
 .legend span::before{content:"";display:inline-block;width:12px;height:12px;border-radius:2px;margin-right:5px;vertical-align:-1px;background:var(--c)}
 .empty{color:var(--muted)}
@@ -177,18 +188,30 @@ footer{font-size:12px;color:var(--muted)}
 
   <section class="panel">
     <div class="row" style="justify-content:space-between">
-      <div class="label">⑥ 逐句标注</div>
-      <div class="legend">
+      <div class="annot-head">
+        <div class="label">⑥ 逐句标注</div>
+        <div class="seg" role="group" aria-label="标注方式">
+          <button id="mode-rule" aria-pressed="true">规则标注</button>
+          <button id="mode-ai" aria-pressed="false" disabled title="生成 AI 点评后可用">AI 标注</button>
+        </div>
+      </div>
+      <div class="legend" id="legend-rule">
         <span style="--c:var(--hl)">轻度废话</span>
         <span style="--c:var(--hl-strong)">重度废话</span>
         <span style="--c:var(--dup)">复读</span>
         <span style="--c:transparent;text-decoration:underline wavy var(--g5)">命中词库</span>
       </div>
+      <div class="legend" id="legend-ai" hidden>
+        <span style="--c:rgba(47,158,107,.35)">干货</span>
+        <span style="--c:var(--hl)">掺水</span>
+        <span style="--c:var(--hl-strong)">纯废话</span>
+        <span id="ai-annot-note"></span>
+      </div>
     </div>
     <div class="annot" id="annot"></div>
   </section>
 
-  <footer>规则说明：句子命中黑话、客套开场、口水词、空头承诺会加分，出现日期、数字、负责人、具体事项会减分，与前文高度重复记为复读。语速按每分钟 220 字估算。语音由 Azure 语音服务转写，AI 点评由 Azure OpenAI 生成。纯属娱乐，请勿拿去给老板看（除非老板有幽默感）。</footer>
+  <footer>规则说明：句子命中黑话、客套开场、口水词、空头承诺会加分，出现日期、数字、负责人、具体事项会减分，与前文高度重复记为复读。语速按每分钟 220 字估算。语音由 Azure 语音服务转写，AI 逐句判定和点评由大模型生成。纯属娱乐，请勿拿去给老板看（除非老板有幽默感）。</footer>
 </div>
 
 <script src="vendor/speech-sdk-1.52.0.min.js"></script>
@@ -288,10 +311,13 @@ function analyze(text){
   let total = 0, weighted = 0, buzz = 0;
   const cat = {}, wc = {}, spk = {}; let dupCount = 0;
   let html = '';
+  const sents = [];
   for (const b of blocks) {
     let lineHtml = esc(b.prefix);
     for (const p of b.parts) {
       const r = scoreSentence(p, history);
+      const si = norm(p).length ? sents.length : -1;
+      if (si >= 0) sents.push({i: si, who: b.speaker || '', t: p.trim()});
       total += r.len; weighted += r.len * r.intensity;
       if (r.dup) { dupCount++; }
       for (const h of r.hits) { buzz++; cat[h.lx.c] = (cat[h.lx.c] || 0) + 1; wc[h.lx.w] = (wc[h.lx.w] || 0) + 1; }
@@ -300,12 +326,13 @@ function analyze(text){
       for (const h of r.hits) { inner += esc(p.slice(last, h.start)) + '<mark title="' + h.lx.c + '">' + esc(p.slice(h.start, h.end)) + '</mark>'; last = h.end; }
       inner += esc(p.slice(last));
       const cls = r.dup ? 's-dup' : r.score >= 4 ? 's-heavy' : r.score >= 2 ? 's-light' : '';
-      lineHtml += cls ? '<span class="' + cls + '" title="废话分 ' + r.score.toFixed(1) + '">' + inner + '</span>' : inner;
+      const tip = cls ? '废话分 ' + r.score.toFixed(1) : '';
+      lineHtml += '<span class="s ' + cls + '" data-r="' + cls + '" data-t="' + tip + '"' + (si >= 0 ? ' data-i="' + si + '"' : '') + (tip ? ' title="' + tip + '"' : '') + '>' + inner + '</span>';
     }
     html += lineHtml + '\n';
   }
   const pct = total ? Math.round(weighted / total * 1000) / 10 : 0;
-  return {pct, total, buzz, cat, wc, spk, dupCount, html: html.replace(/\n+$/, '')};
+  return {pct, total, buzz, cat, wc, spk, dupCount, sents, html: html.replace(/\n+$/, '')};
 }
 
 let lastResult = null;
@@ -338,7 +365,39 @@ function render(){
   $('topwords').innerHTML = top.length ? '<table><tbody>' + top.map(([w, c]) => `<tr><td>${esc(w)}</td><td style="width:55%"><div class="minibar"><i style="width:${c / maxc * 100}%"></i></div></td><td class="num">×${c}</td></tr>`).join('') + '</tbody></table>'
     : '<div class="empty">暂未检测到黑话。</div>';
   $('annot').innerHTML = r.html || '<span class="empty">标注结果会显示在这里。</span>';
+  applyAnnot();
 }
+
+// ---------- 逐句标注：规则 / AI 两种视图 ----------
+let annotMode = 'rule', aiLines = null, aiCallouts = null, aiLinesFor = null;
+const AI_NAMES = ['纯废话', '掺水', '干货'];
+function aiReady(){ return !!(aiLines && aiLines.size && aiLinesFor === $('input').value.trim() && !livePartial); }
+function applyAnnot(){
+  const ready = aiReady();
+  const useAI = annotMode === 'ai' && ready;
+  $('mode-ai').disabled = !ready;
+  $('mode-rule').setAttribute('aria-pressed', String(!useAI));
+  $('mode-ai').setAttribute('aria-pressed', String(useAI));
+  $('legend-rule').hidden = useAI; $('legend-ai').hidden = !useAI;
+  $('annot').querySelectorAll('.ai-callout').forEach(el => el.remove());
+  $('annot').querySelectorAll('span.s').forEach(el => {
+    el.className = 's';
+    const i = el.dataset.i === undefined ? null : Number(el.dataset.i);
+    if (useAI) {
+      const v = i === null ? undefined : aiLines.get(i);
+      if (v === undefined) { el.removeAttribute('title'); return; }
+      el.classList.add('ai-' + v);
+      const why = aiCallouts && aiCallouts.get(i);
+      el.title = 'AI：' + AI_NAMES[v] + (why ? ' · ' + why : '');
+      if (why) { const c = document.createElement('span'); c.className = 'ai-callout' + (v === 2 ? ' good' : ''); c.textContent = '← ' + why; el.after(c); }
+    } else {
+      if (el.dataset.r) el.classList.add(el.dataset.r);
+      if (el.dataset.t) el.title = el.dataset.t; else el.removeAttribute('title');
+    }
+  });
+}
+$('mode-rule').addEventListener('click', () => { annotMode = 'rule'; applyAnnot(); });
+$('mode-ai').addEventListener('click', () => { annotMode = 'ai'; applyAnnot(); });
 
 let t; $('input').addEventListener('input', () => { clearTimeout(t); t = setTimeout(render, 200); });
 $('btn-sample').addEventListener('click', () => { sampleIdx = (sampleIdx + 1) % SAMPLES.length; $('input').value = SAMPLES[sampleIdx]; render(); });
@@ -479,12 +538,34 @@ async function runAI(){
   if (text.length < 20) { $('ai-out').innerHTML = '<div class="empty">内容太短，多录几句再来。</div>'; return; }
   if (aiFor === text) return;
   aiFor = text;
+  aiLines = null; aiCallouts = null; aiLinesFor = null; render();
+  const sentences = lastResult ? lastResult.sents : [];
   $('final').hidden = false; $('final').classList.add('loading'); $('final-grade').textContent = 'AI 正在终审…'; $('final-note').textContent = '';
   $('btn-ai').disabled = true; $('btn-ai').textContent = 'AI 正在化验…';
   try {
-    const res = await fetch('/api/ai-review', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({text, rulePct: lastResult ? lastResult.pct : null})});
+    const res = await fetch('/api/ai-review', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({text, rulePct: lastResult ? lastResult.pct : null, sentences})});
     const d = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(d.error || ('AI 服务返回 ' + res.status));
+    // 逐句判定
+    aiLines = new Map((Array.isArray(d.lines) ? d.lines : []).filter(x => x && Number.isInteger(x.i) && [0, 1, 2].includes(x.v)).map(x => [x.i, x.v]));
+    aiCallouts = new Map((Array.isArray(d.callouts) ? d.callouts : []).filter(x => x && Number.isInteger(x.i) && x.why).map(x => [x.i, String(x.why)]));
+    aiLinesFor = text;
+    const cnt = [0, 0, 0], bySpk = {};
+    for (const s of sentences) {
+      const v = aiLines.get(s.i); if (v === undefined) continue;
+      cnt[v]++;
+      if (s.who) { const o = bySpk[s.who] ||= {n: 0, good: 0}; o.n++; if (v === 2) o.good++; }
+    }
+    const judged = cnt[0] + cnt[1] + cnt[2];
+    $('ai-annot-note').textContent = judged < sentences.length ? `AI 判了 ${judged} / ${sentences.length} 句，其余没判` : '';
+    if (judged) { annotMode = 'ai'; }
+    applyAnnot();
+    const spkRows = Object.entries(bySpk).map(([n, o]) => ({n, n2: o.n, good: o.good, r: o.good / o.n})).sort((a, b) => b.r - a.r);
+    const lineSummary = judged ? `
+      <div><div class="label">AI 逐句判定（共 ${judged} 句，下方「逐句标注」已切到 AI 视图）</div>
+        <div class="chips" style="margin-top:6px"><span class="chip">干货<b>${cnt[2]}</b></span><span class="chip">掺水<b>${cnt[1]}</b></span><span class="chip">纯废话<b>${cnt[0]}</b></span></div>
+        ${spkRows.length > 1 ? '<table style="margin-top:8px"><thead><tr><th>发言人</th><th>干货句占比</th><th></th><th style="text-align:right">干货 / 总句</th></tr></thead><tbody>' + spkRows.map(s => `<tr><td>${esc(s.n)}</td><td class="num">${Math.round(s.r * 100)}%</td><td style="width:40%"><div class="minibar"><i style="width:${s.r * 100}%"></i></div></td><td class="num">${s.good} / ${s.n2}</td></tr>`).join('') + '</tbody></table>' : ''}
+      </div>` : '';
     showFinal(lastResult ? Math.round(lastResult.pct) : 0, Math.max(0, Math.min(100, Math.round(Number(d.score) || 0))));
     const li = a => (Array.isArray(a) && a.length) ? '<ul>' + a.map(x => '<li>' + esc(String(x)) + '</li>').join('') + '</ul>' : '<div class="empty">没有</div>';
     const todos = Array.isArray(d.todos) && d.todos.length
@@ -495,9 +576,10 @@ async function runAI(){
       <div class="hint">AI 判定的废话浓度 · 规则引擎为 ${lastResult ? lastResult.pct : 0}%</div>
       <p class="roast">${esc(String(d.roast || ''))}</p>
       ${d.worst_quote ? '<div><div class="label">全场最空一句</div><blockquote class="quote">“' + esc(String(d.worst_quote)) + '”</blockquote></div>' : ''}
+      ${lineSummary}
       <div class="ai-cols"><div><div class="label">真正有用的结论</div>${li(d.takeaways)}</div><div><div class="label">待办</div>${todos}</div></div>`;
   } catch (e) {
-    aiFor = null; $('final').hidden = true;
+    aiFor = null; $('final').hidden = true; aiLines = null; applyAnnot();
     $('ai-out').innerHTML = '<div class="empty">' + esc(e.message) + '</div>';
   } finally { $('btn-ai').disabled = false; $('btn-ai').textContent = '重新生成 AI 点评'; }
 }
