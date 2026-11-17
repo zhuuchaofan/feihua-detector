@@ -4,8 +4,8 @@
     "FUNCTIONS_WORKER_RUNTIME": "node",
     "SPEECH_KEY": "",
     "SPEECH_REGION": "eastasia",
-    "AOAI_ENDPOINT": "https://<your-resource>.openai.azure.com",
-    "AOAI_KEY": "",
-    "AOAI_DEPLOYMENT": "gpt-5.4-mini"
+    "LLM_BASE_URL": "https://api.deepseek.com",
+    "LLM_API_KEY": "",
+    "LLM_MODEL": "deepseek-chat"
   }
 }

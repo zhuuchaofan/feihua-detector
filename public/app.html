@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>检测台 · 会议废话浓度检测器</title>
+<meta name="description" content="开会时打开它，边说边转写，实时测出每句话的废话浓度，会后 AI 出化验单。">
+<meta name="theme-color" content="#18212C">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="/assets/site.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=ZCOOL+QingKe+HuangYou&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@500;700&display=swap">
+<link rel="stylesheet" href="/assets/site.css">
+<style>
+.meetbar{gap:10px 16px}
+.meetbar input{width:min(22em,60vw);font-size:16px;font-weight:500;background:var(--card)}
+.notice{background:var(--card);border:1px dashed var(--ink);border-radius:6px;padding:10px 14px;font-size:14px}
+textarea#input{min-height:300px}
+.rec{border:1px dashed var(--line);border-radius:4px;padding:12px;display:flex;flex-direction:column;gap:10px;background:var(--paper)}
+.recbtn{background:var(--ink);color:var(--card);font-weight:700;padding:8px 16px}
+.recbtn .dot{width:10px;height:10px;border-radius:50%;background:var(--g5)}
+.recbtn[aria-pressed="true"]{background:var(--g5);border-color:var(--g5);color:#fff}
+.recbtn[aria-pressed="true"] .dot{background:#fff;animation:pulse 1s infinite}
+.recbtn:hover{color:var(--card)}
+@keyframes pulse{50%{opacity:.25}}
+.rec-time{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:16px}
+.partial{font-size:14px;color:var(--muted);min-height:1.6em}
+.partial.live{color:var(--ink)}
+.names{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.names label{font-size:13px;color:var(--muted);display:inline-flex;align-items:center;gap:4px}
+.names input{width:7em;background:var(--card)}
+.quota{font-size:12px;color:var(--muted)}
+.quota b{font-family:var(--mono);color:var(--ink);font-weight:500}
+details.settings summary{cursor:pointer;font-size:13px;color:var(--muted)}
+details.settings[open] summary{margin-bottom:10px}
+details.settings textarea{min-height:90px;font-size:13px}
+.set-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:560px){.set-grid{grid-template-columns:1fr}}
+.final-top{display:grid;grid-template-columns:auto minmax(0,1fr);gap:12px 28px;align-items:end}
+@media (max-width:640px){.final-top{grid-template-columns:1fr}}
+.final-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px}
+@media (max-width:820px){.final-grid{grid-template-columns:1fr}}
+#final-panel{border:2px solid var(--ink)}
+.final-grid ul{margin:6px 0 0;padding-left:1.2em}
+.source{font-size:12px;color:var(--muted)}
+.review-title{font-family:var(--display);font-weight:400;font-size:30px;line-height:1.2;margin:0;text-wrap:balance}
+.oneliner{font-weight:700;font-size:17px;margin:0}
+.quote{margin:4px 0 0;font-size:15px;color:var(--muted)}
+.awards{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:560px){.awards{grid-template-columns:1fr}}
+.award{border:1px solid var(--line);border-radius:4px;padding:10px 12px}
+.award b{display:block;font-size:17px}
+.progress{font-size:14px;color:var(--muted)}
+.live{align-self:start}
+</style>
+</head>
+<body>
+<header id="site-head"></header>
+
+<main class="gutter">
+<div class="wrap stack">
+  <section class="row spread meetbar">
+    <div class="row"><label class="label" for="title">本场会议</label><input id="title" type="text" maxlength="40" placeholder="未命名会议" autocomplete="off"></div>
+    <div class="row"><span class="hint" id="saved-at"></span><button class="btn small quiet" id="btn-save">保存到历史</button><button class="btn small" id="btn-new">新的一场</button></div>
+  </section>
+
+  <div class="notice" id="demo-note" hidden>这是一场<b>示例会议</b>，AI 判断和点评是演示数据。点「开始录音」或「清空」就能测你自己的会。</div>
+
+  <div class="grid2">
+    <section class="panel">
+      <div class="label">录音 / 文字</div>
+      <div class="rec" id="rec-box">
+        <div class="row">
+          <button class="btn recbtn" id="btn-rec" aria-pressed="false"><span class="dot"></span><span id="rec-label">开始录音</span></button>
+          <span class="rec-time" id="rec-time">00:00</span>
+        </div>
+        <div class="partial" id="partial">一个麦克风录整场会就行，会自动分出不同的人，边说边出字，边说边打分。</div>
+        <div class="names" id="names" hidden><span class="hint">认出的发言人，可以改成真名：</span></div>
+      </div>
+      <textarea id="input" spellcheck="false" placeholder="录音的文字会出现在这里，也可以直接粘贴会议纪要。&#10;“名字：内容”的格式会自动按发言人统计。"></textarea>
+      <div class="row">
+        <button class="btn quiet small" id="btn-sample">换个样例</button>
+        <button class="btn quiet small" id="btn-clear">清空</button>
+        <span class="hint" id="charcount"></span>
+      </div>
+      <div class="quota" id="quota"></div>
+      <details class="settings" id="settings">
+        <summary>词库和 AI 设置</summary>
+        <div class="set-grid">
+          <div class="stack" style="gap:6px">
+            <label class="label" for="set-custom">加你们公司的黑话（每行一个，可加权重 1-5）</label>
+            <textarea id="set-custom" placeholder="例如：&#10;对焦&#10;打透 3&#10;端到端"></textarea>
+          </div>
+          <div class="stack" style="gap:6px">
+            <label class="label" for="set-ignore">不算废话的词（每行一个）</label>
+            <textarea id="set-ignore" placeholder="例如：复盘"></textarea>
+          </div>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <label class="hint"><input type="checkbox" id="set-auto"> 录音时自动让 AI 逐句精读，停止后自动终审</label>
+          <button class="btn small" id="btn-set-save">保存设置</button>
+        </div>
+      </details>
+    </section>
+
+    <section class="panel live" aria-live="polite">
+      <div class="row spread"><div class="label">实时</div><span class="hint" id="rec-state">还没开始录音</span></div>
+      <div class="big"><div class="pct" id="pct">0<small>%</small></div><div class="grade" id="grade">—</div></div>
+      <div class="gauge"><div class="needle" id="needle" style="left:0%"></div>
+        <div class="bar"><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="ticks"><span>纯净水</span><span>淡茶</span><span>浓汤</span><span>黑话高汤</span><span>废话原浆</span></div>
+      </div>
+      <p class="roast" id="roast"></p>
+      <div class="source" id="source"></div>
+    </section>
+  </div>
+
+  <section class="panel" id="final-panel">
+    <div class="row spread">
+      <div class="label">最终</div>
+      <button class="btn primary" id="btn-ai">出最终结果</button>
+    </div>
+    <div class="progress" id="ai-progress" hidden></div>
+    <div id="final-empty" class="empty">停止录音后自动出最终结果：AI 读完整场会，给出最终得分、结论和待办、废话之王，再来一段毒舌点评。粘贴的纪要点右上角按钮。</div>
+    <div id="final-out" class="stack" hidden>
+      <div class="final-top">
+        <div>
+          <div class="big"><div class="pct" id="final-pct">0<small>%</small></div><div class="grade" id="final-grade"></div></div>
+          <div class="source" id="final-note"></div>
+        </div>
+        <div class="final-words">
+          <h2 class="review-title" id="r-title"></h2>
+          <p class="oneliner" id="r-oneliner"></p>
+        </div>
+      </div>
+      <p class="roast" id="r-roast"></p>
+      <div class="final-grid">
+        <div class="stack" style="gap:14px">
+          <div><div class="label">有用的结论</div><div id="r-takeaways"></div></div>
+          <div><div class="label">待办</div><div id="r-todos"></div></div>
+          <div id="r-worst-box"><div class="label">全场最空一句</div><blockquote class="quote" id="r-worst"></blockquote></div>
+        </div>
+        <div class="stack" style="gap:14px">
+          <div class="awards" id="r-awards"></div>
+          <div><div class="label">发言人废话排行</div><div id="speakers"></div></div>
+          <div><div class="label">高频黑话</div><div class="chips" id="topwords"></div></div>
+        </div>
+      </div>
+      <div class="row">
+        <button class="btn primary small" id="btn-card">生成分享图</button>
+        <button class="btn small" id="btn-md">导出纪要</button>
+        <button class="btn small quiet" id="btn-copy">复制结论</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="row spread">
+      <div class="label">逐句标注</div>
+      <div class="legend">
+        <span style="--c:var(--good)">干货</span><span style="--c:var(--hl)">掺水</span><span style="--c:var(--hl-strong)">纯废话</span><span style="--c:var(--dup)">复读</span>
+      </div>
+    </div>
+    <div class="hint">AI 读过的句子后面会挂一句短评；还没读到的先按词库标注，波浪线是命中的黑话。</div>
+    <div class="annot" id="annot"></div>
+  </section>
+</div>
+</main>
+
+<footer class="site-foot gutter"><div class="wrap">
+  <span>录音只用于实时转写，不保存音频；文字和历史只存在你的浏览器里。AI 判断会把文字发给 DeepSeek 处理。</span>
+  <span>录别人说话前，请先打个招呼。</span>
+</div></footer>
+
+<script src="/vendor/speech-sdk-1.52.0.min.js" defer></script>
+<script src="/assets/site.js"></script>
+<script src="/assets/analyzer.js"></script>
+<script src="/assets/store.js"></script>
+<script src="/assets/share.js"></script>
+<script src="/assets/app.js"></script>
+</body>
+</html>

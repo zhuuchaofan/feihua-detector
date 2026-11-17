@@ -1,0 +1,1 @@
+{ "name": "会议废话浓度检测器", "short_name": "废话检测", "start_url": "/app", "display": "standalone", "background_color": "#EEF1F5", "theme_color": "#18212C", "icons": [{ "src": "/assets/favicon.svg", "sizes": "any", "type": "image/svg+xml" }] }
