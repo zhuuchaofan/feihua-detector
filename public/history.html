@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>历史记录 · 会议废话浓度检测器</title>
+<meta name="theme-color" content="#18212C">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="/assets/site.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=ZCOOL+QingKe+HuangYou&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@500;700&display=swap">
+<link rel="stylesheet" href="/assets/site.css">
+<style>
+h1.page{font-family:var(--display);font-weight:400;font-size:clamp(32px,5vw,44px);margin:0;line-height:1.1}
+.trend svg{width:100%;height:auto;display:block}
+.trend text{fill:var(--muted);font-family:var(--mono);font-size:11px}
+.trend .grid{stroke:var(--line);stroke-width:1}
+.list{display:flex;flex-direction:column;border-top:1px solid var(--line)}
+.item{display:grid;grid-template-columns:72px minmax(0,1fr) auto;gap:6px 16px;align-items:center;padding:12px 4px;border-bottom:1px solid var(--line);color:inherit;text-decoration:none}
+.item:hover{background:var(--soft)}
+.item .score{font-family:var(--mono);font-weight:700;font-size:26px;font-variant-numeric:tabular-nums;display:flex;align-items:center;gap:6px}
+.item .t{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item .m{font-size:12px;color:var(--muted)}
+.item .acts{display:flex;gap:6px}
+@media (max-width:560px){.item{grid-template-columns:64px minmax(0,1fr)}.item .acts{grid-column:2}}
+.detail-top{display:grid;grid-template-columns:auto minmax(0,1fr);gap:12px 28px;align-items:end}
+@media (max-width:640px){.detail-top{grid-template-columns:1fr}}
+.review-title{font-family:var(--display);font-weight:400;font-size:28px;line-height:1.2;margin:0}
+.confirm{display:inline-flex;gap:6px;align-items:center;font-size:13px}
+</style>
+</head>
+<body>
+<header id="site-head"></header>
+
+<main class="gutter">
+<div class="wrap stack">
+  <div class="row spread">
+    <h1 class="page" id="page-title">历史记录</h1>
+    <div class="row">
+      <input type="search" id="q" placeholder="搜标题或内容" aria-label="搜索历史记录">
+      <a class="btn primary small" href="/app">新的一场</a>
+    </div>
+  </div>
+  <p class="hint" style="margin:0">记录只保存在这台设备的这个浏览器里，最多 60 场。清除浏览器数据会一起清掉。</p>
+
+  <section class="panel trend" id="trend-panel" hidden>
+    <div class="row spread"><div class="label">最近的会越来越水了吗</div><span class="hint" id="trend-note"></span></div>
+    <div id="trend"></div>
+  </section>
+
+  <section class="panel" id="list-panel">
+    <div class="list" id="list"></div>
+  </section>
+
+  <section class="panel" id="detail" hidden></section>
+</div>
+</main>
+
+<footer class="site-foot gutter"><div class="wrap">
+  <span>会议废话浓度检测器 · 纯属娱乐</span>
+  <span>历史记录只存在你的浏览器里</span>
+</div></footer>
+
+<script src="/assets/site.js"></script>
+<script src="/assets/analyzer.js"></script>
+<script src="/assets/store.js"></script>
+<script src="/assets/share.js"></script>
+<script src="/assets/history.js"></script>
+</body>
+</html>
