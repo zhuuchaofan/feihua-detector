@@ -12,7 +12,7 @@ app.http('status', {
     jsonBody: {
       speech: Boolean(process.env.SPEECH_KEY && process.env.SPEECH_REGION),
       ai: Boolean(providerConfig()),
-      ...quotaReport(request),
+      ...(await quotaReport(request)),
     },
   }),
 });
