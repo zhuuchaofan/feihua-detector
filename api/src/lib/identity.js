@@ -1,20 +1,18 @@
 // 认出“这是谁”：登录用户按账号，未登录按 IP。额度就是按这里给出的 key 计的。
 
-// 客户端 IP。浏览器自己也能在请求里塞一个 X-Forwarded-For，所以优先用 Azure 网关自己写的头；
-// 都没有时才退回 X-Forwarded-For 的第一项。
-const IP_HEADERS = ['x-azure-socketip', 'x-azure-clientip', 'x-client-ip', 'x-forwarded-for'];
-
+// 客户端 IP。Static Web Apps 网关不会清掉浏览器自己填的请求头：X-Client-IP、X-Azure-ClientIP 都能伪造，
+// X-Forwarded-For 里浏览器填的内容也会原样留在最前面。网关会在 X-Forwarded-For 末尾追加两项：
+//   "<浏览器自己填的…>, <真实来源 IP:端口>, <Azure 内部一跳:端口>"
+// 所以只认倒数第二项（2026-11 在预览环境实测过）。
 function stripPort(ip) {
   if (/^\[.+\]:\d+$/.test(ip)) return ip.slice(1, ip.lastIndexOf(']')); // [IPv6]:端口
   return (ip.match(/:/g) || []).length === 1 ? ip.split(':')[0] : ip; // IPv4:端口
 }
 
 function clientIp(request) {
-  for (const name of IP_HEADERS) {
-    const first = (request.headers.get(name) || '').split(',')[0].trim();
-    if (first) return stripPort(first);
-  }
-  return 'unknown';
+  const hops = (request.headers.get('x-forwarded-for') || '').split(',').map((x) => x.trim()).filter(Boolean);
+  if (!hops.length) return 'unknown';
+  return stripPort(hops[Math.max(0, hops.length - 2)]);
 }
 
 // Static Web Apps 内置登录会把用户信息放在这个请求头里（base64 JSON），只有经过 SWA 网关的请求才会带上
