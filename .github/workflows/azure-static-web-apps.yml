@@ -15,6 +15,9 @@ jobs:
     name: Build and deploy
     steps:
       - uses: actions/checkout@v4
+      # 给页面引用的 JS/CSS 加上这次提交的版本号，浏览器就能放心长期缓存，上线后也不会新旧代码混用
+      - name: Stamp asset version
+        run: sed -i "s/?v=__V__/?v=${GITHUB_SHA::8}/g" public/*.html
       - name: Deploy
         uses: Azure/static-web-apps-deploy@v1
         with:

@@ -4,7 +4,7 @@
   --accent:#2448C8; --on-accent:#FFFFFF; --hl:#FFE45C; --hl-strong:#FFB547; --dup:#F3B6C4; --good:#CFEBDD;
   --g1:#2F9E6B; --g2:#8DB83A; --g3:#E2B11E; --g4:#E5782D; --g5:#D23F3F;
   --display:"ZCOOL QingKe HuangYou","PingFang SC","Microsoft YaHei",sans-serif;
-  --body:"Noto Sans SC","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+  --body:system-ui,-apple-system,"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans CJK SC","Source Han Sans SC",sans-serif;
   --mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
   color-scheme:light;
 }

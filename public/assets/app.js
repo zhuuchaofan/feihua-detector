@@ -392,7 +392,7 @@
     }
     if (state === 'idle') {
       if (timer) { st.duration += (Date.now() - recStart) / 1000; }
-      clearInterval(timer); timer = null; clearInterval(refreshTimer); refreshTimer = null; clearInterval(judgeTimer); judgeTimer = null;
+      clearInterval(timer); timer = null; clearTimeout(refreshTimer); refreshTimer = null; clearInterval(judgeTimer); judgeTimer = null;
       $('partial').classList.remove('live'); livePartial = ''; render();
       $('partial').textContent = msg || '录音已停止。';
       if (was === 'listening' || was === 'finishing') {
@@ -432,11 +432,14 @@
       recog.transcribed = (_, e) => { if (e.result.reason === sdk.ResultReason.RecognizedSpeech) appendText(e.result.text, e.result.speakerId); };
       recog.canceled = (_, e) => { stopRec(e.reason === sdk.CancellationReason.Error ? '语音服务断开了：' + (e.errorDetails || '未知错误') : ''); };
       recog.sessionStopped = () => stopRec();
-      // 令牌 10 分钟过期，长会议每 8 分钟续一次
-      refreshTimer = setInterval(async () => {
-        try { if (recog) recog.authorizationToken = (await fetchToken(true)).token; }
-        catch (e) { stopRec(e.code === 'quota' ? '今天的录音额度用完了，已停止。' + (e.loggedIn ? '' : '登录后额度更高。') : '续期失败，录音已停止。'); }
-      }, 8 * 60 * 1000);
+      // 令牌 10 分钟过期：按手上这张令牌的年龄算，满 8 分钟就续一张（开录时用的可能是几分钟前取的令牌）
+      const renew = () => {
+        refreshTimer = setTimeout(async () => {
+          try { if (recog) { recog.authorizationToken = (await fetchToken(true)).token; renew(); } }
+          catch (e) { stopRec(e.code === 'quota' ? '今天的录音额度用完了，已停止。' + (e.loggedIn ? '' : '登录后额度更高。') : '续期失败，录音已停止。'); }
+        }, Math.max(15000, tokenCache.at + 8 * 60 * 1000 - Date.now()));
+      };
+      renew();
       await new Promise((ok, fail) => recog.startTranscribingAsync(ok, fail));
       setRecUI('listening');
       $('partial').textContent = '开始说吧，我在听。';

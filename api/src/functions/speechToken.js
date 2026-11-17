@@ -2,8 +2,6 @@
 const { app } = require('@azure/functions');
 const { guard, refund } = require('../lib/guard');
 
-let cache = { token: null, expires: 0 };
-
 function tokenUrl(region) {
   const host = region.startsWith('china') ? 'api.cognitive.azure.cn' : 'api.cognitive.microsoft.com';
   return `https://${region}.${host}/sts/v1.0/issueToken`;
@@ -19,10 +17,8 @@ app.http('speech-token', {
     if (!key || !region) return { status: 500, jsonBody: { error: '服务器还没配置语音服务' } };
     const blocked = guard(request, 'speech-token');
     if (blocked) return blocked;
-    const now = Date.now();
-    if (cache.token && cache.expires > now) {
-      return { jsonBody: { token: cache.token, region }, headers: { 'Cache-Control': 'no-store' } };
-    }
+    // 每次都换一张新令牌，不在服务器上缓存：以前多人共用一张缓存 8 分钟的令牌，
+    // 浏览器续期时可能拿到快过期的旧令牌，长会议录到 10 来分钟就会断线
     try {
       const res = await fetch(tokenUrl(region), { method: 'POST', headers: { 'Ocp-Apim-Subscription-Key': key, 'Content-Length': '0' } });
       if (!res.ok) {
@@ -31,7 +27,6 @@ app.http('speech-token', {
         return { status: 502, jsonBody: { error: `语音服务拒绝了请求（${res.status}）` } };
       }
       const token = await res.text();
-      cache = { token, expires: now + 8 * 60 * 1000 };
       return { jsonBody: { token, region }, headers: { 'Cache-Control': 'no-store' } };
     } catch (err) {
       refund(request, 'speech-token');
