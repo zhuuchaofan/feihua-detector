@@ -89,9 +89,6 @@
     const lv = F.LEVELS[Math.max(0, F.levelOf(r.livePct))];
     $('pct').innerHTML = (r.total ? Math.round(r.livePct) : 0) + '<small>%</small>';
     $('grade').textContent = r.total ? lv.name : '等待开口';
-    $('dock-pct').textContent = (r.total ? Math.round(r.livePct) : 0) + '%';
-    $('dock-grade').textContent = r.total ? lv.name.split(' · ')[0] : '等待开口';
-    $('dock-dot').className = 'lv-dot' + (r.total ? ' lv' + (Math.max(0, F.levelOf(r.livePct)) + 1) : '');
     $('needle').style.left = Math.min(100, r.total ? r.livePct : 0) + '%';
     $('roast').textContent = r.total ? lv.roasts[r.total % lv.roasts.length] : '开始录音或粘贴一段会议纪要，看看这场会有多少水分。';
     const cov = r.coverage;
@@ -108,6 +105,18 @@
     $('btn-ai').textContent = fresh ? '重新出最终结果' : '出最终结果';
 
     $('annot').innerHTML = F.annotate(r, 'ai') || '<span class="empty">转写的文字和标注会出现在这里。</span>';
+    updateDock();
+  }
+  // 手机底部：录音时显示实时分；AI 出结果时提示进度；出了最终结果就显示最终分，点一下跳过去
+  function updateDock() {
+    const r = result, fin = st.review && st.reviewFor === $('input').value && st.finalPct != null;
+    const pct = fin ? st.finalPct : r.total ? Math.round(r.livePct) : 0;
+    $('dock-pct').textContent = pct + '%';
+    $('dock-grade').textContent = finalizing ? 'AI 出结果中…' : fin ? '最终结果 ›' : r.total ? F.LEVELS[Math.max(0, F.levelOf(pct))].name.split(' · ')[0] : '等待开口';
+    $('dock-dot').className = 'lv-dot' + (r.total ? ' lv' + (Math.max(0, F.levelOf(pct)) + 1) : '');
+    const link = $('dock-score');
+    link.href = fin || finalizing ? '#final-panel' : '#live';
+    link.setAttribute('aria-label', fin || finalizing ? '查看最终结果' : '查看实时得分');
   }
   function fmtMin(m) { return m < 1 ? Math.round(m * 60) + ' 秒' : m.toFixed(1) + ' 分钟'; }
 
@@ -203,10 +212,14 @@
   async function finalize() {
     if (finalizing) return;
     const text = $('input').value.trim();
-    if (text.length < 20) { progress('内容太短，多录几句再来。'); return; }
+    const goFinal = () => $('final-panel').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+    if (text.length < 20) {
+      progress(text ? '内容太短（不到 20 个字），多录几句再来。' : '没有录到文字，出不了最终结果。如果录音时一直没出字，检查一下浏览器的麦克风权限。');
+      Site.toast(text ? '内容太短，出不了最终结果' : '没有录到文字'); goFinal(); return;
+    }
     if (!st.status.ai) { progress('AI 还没配置，只能看实时得分。'); return; }
     finalizing = true; $('btn-ai').disabled = true; st.demo = false; $('demo-note').hidden = true;
-    failed.clear();
+    failed.clear(); updateDock(); goFinal();
     try {
       await judge(true);
       progress('AI 正在写最终点评…');
@@ -216,14 +229,17 @@
       st.review = rv; st.reviewFor = $('input').value;
       if (rv.title && !$('title').value.trim()) $('title').value = rv.title;
       progress('');
+      finalizing = false;
       render();
       save(true);
-      $('final-panel').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+      goFinal();
     } catch (err) {
       progress(quotaHint(err));
-    } finally { finalizing = false; $('btn-ai').disabled = false; refreshStatus(500); }
+      Site.toast('最终结果没出来，原因写在「最终」里');
+    } finally { finalizing = false; $('btn-ai').disabled = false; updateDock(); refreshStatus(500); }
   }
   $('btn-ai').addEventListener('click', () => { st.review = null; finalize(); });
+  $('btn-restore-final').addEventListener('click', () => { $('restore-note').hidden = true; st.review = null; finalize(); });
 
   // ---------- 保存 ----------
   function defaultTitle() { return '会议 ' + Sh.fmtDate(st.at).slice(5); }
@@ -237,12 +253,13 @@
     const fresh = st.review && st.reviewFor === text;
     const rec = {
       id: st.id, at: st.at, updated: Date.now(), title: $('title').value.trim() || (fresh && st.review.title) || defaultTitle(),
-      duration: Math.round(st.duration), text, rulePct: result.rulePct, aiPct: result.aiPct,
+      duration: Math.round(st.duration + (recState === 'listening' && timer ? (Date.now() - recStart) / 1000 : 0)), text, rulePct: result.rulePct, aiPct: result.aiPct,
       pct: fresh && st.finalPct != null ? st.finalPct : Math.round(result.livePct), final: !!fresh,
       review: fresh ? st.review : null, ai: S.packAi(ai),
       topWords: Object.entries(result.wc).sort((a, b) => b[1] - a[1]).slice(0, 6),
     };
     const ok = S.save(rec);
+    if (ok) S.setCurrent(st.id);
     st.savedText = text;
     $('saved-at').textContent = ok ? `已保存 ${Sh.fmtDate(Date.now()).slice(11)}` : '浏览器存储不可用，没能保存';
     if (!silent) Site.toast(ok ? '已保存到历史记录' : '没能保存：浏览器存储不可用');
@@ -289,7 +306,8 @@
     failed.clear(); lastSpk = null; for (const k in nameMap) delete nameMap[k];
     $('names').hidden = true; $('names').querySelectorAll('label').forEach((l) => l.remove());
     $('title').value = opts.title || ''; $('saved-at').textContent = '';
-    $('input').value = text; $('demo-note').hidden = !st.demo;
+    $('input').value = text; $('demo-note').hidden = !st.demo; $('restore-note').hidden = true;
+    S.setCurrent(null);
     showClock(st.duration);
     render();
   }
@@ -342,12 +360,31 @@
     const name = nameOf(speakerId) || lastSpk || '发言人?';
     if (name !== lastSpk) { v = v.replace(/\s+$/, ''); v += (v ? '\n' : '') + name + '：'; lastSpk = name; }
     ta.value = v + t; livePartial = ''; ta.scrollTop = ta.scrollHeight; render();
+    autosave();
+  }
+  // 边录边存：最多每 5 秒存一次，页面被系统重载也丢不了多少
+  let autoTimer = null;
+  function autosave() {
+    if (autoTimer || st.demo) return;
+    autoTimer = setTimeout(() => { autoTimer = null; if ($('input').value !== st.savedText) save(true); }, 5000);
+  }
+  // 录音时保持屏幕常亮：手机一锁屏，浏览器就会掐掉麦克风
+  let wakeLock = null;
+  async function keepAwake(on) {
+    try {
+      if (on && !wakeLock && navigator.wakeLock && document.visibilityState === 'visible') {
+        wakeLock = await navigator.wakeLock.request('screen');
+        wakeLock.addEventListener('release', () => { wakeLock = null; });
+      } else if (!on && wakeLock) { const w = wakeLock; wakeLock = null; await w.release(); }
+    } catch { wakeLock = null; }
   }
   function setRecUI(state, msg) {
     const was = recState; recState = state;
     const label = state === 'starting' ? '正在连接…' : state === 'listening' ? '停止录音' : state === 'finishing' ? '收尾中…' : '开始录音';
     for (const [b, l] of [['btn-rec', 'rec-label'], ['dock-rec', 'dock-rec-label']]) { $(b).setAttribute('aria-pressed', state === 'idle' ? 'false' : 'true'); $(l).textContent = label; }
     $('rec-state').textContent = state === 'listening' ? '录音中，边说边打分' : state === 'idle' ? (result && result.total ? '已停止' : '还没开始录音') : '…';
+    document.documentElement.classList.toggle('recording', state !== 'idle');
+    keepAwake(state === 'listening');
     if (state === 'listening' && !timer) {
       recStart = Date.now();
       timer = setInterval(() => showClock(st.duration + (Date.now() - recStart) / 1000), 500);
@@ -358,9 +395,11 @@
       clearInterval(timer); timer = null; clearInterval(refreshTimer); refreshTimer = null; clearInterval(judgeTimer); judgeTimer = null;
       $('partial').classList.remove('live'); livePartial = ''; render();
       $('partial').textContent = msg || '录音已停止。';
-      if (!msg && (was === 'listening' || was === 'finishing')) {
+      if (was === 'listening' || was === 'finishing') {
+        clearTimeout(autoTimer); autoTimer = null;
         save(true);
-        if (settings.autoJudge && st.status.ai) finalize();
+        if (msg && $('input').value.trim()) $('partial').textContent = msg + ' 录到的文字已保存，可以接着录，或者点「出最终结果」。';
+        if (!msg && settings.autoJudge && st.status.ai) finalize();
       }
     }
   }
@@ -422,16 +461,33 @@
   $('btn-rec').addEventListener('click', toggleRec);
   $('dock-rec').addEventListener('click', toggleRec); // 手机底部那颗
   window.addEventListener('beforeunload', (e) => { if (recState !== 'idle') { e.preventDefault(); e.returnValue = ''; } });
+  // 切到别的 App、锁屏、关页面之前立刻存一份；回到页面时重新保持常亮
+  const flush = () => { if (recState !== 'idle' && $('input').value !== st.savedText) save(true); };
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flush(); else if (recState === 'listening') keepAwake(true); });
+  window.addEventListener('pagehide', flush);
 
   // ---------- 启动 ----------
   applySettings();
   const params = new URLSearchParams(location.search);
   const openId = params.get('open');
   const rec = openId && S.get(openId);
+  // 没指定打开哪场、也没要看示例时，恢复刚才那场会（页面被手机重载、误触下拉刷新都不怕）
+  const lastId = !rec && !params.has('sample') && S.current();
+  const last = lastId && S.get(lastId);
+  function openRecord(r) {
+    reset(r.text, { title: r.title, ai: S.unpackAi(r.ai), review: r.review, duration: r.duration });
+    st.id = r.id; st.at = r.at; st.savedText = r.text;
+    S.setCurrent(r.id);
+  }
   if (rec) {
-    reset(rec.text, { title: rec.title, ai: S.unpackAi(rec.ai), review: rec.review, duration: rec.duration });
-    st.id = rec.id; st.at = rec.at; st.savedText = rec.text;
+    openRecord(rec);
     $('saved-at').textContent = '来自历史记录';
+  } else if (last) {
+    openRecord(last);
+    $('saved-at').textContent = '已恢复';
+    $('restore-text').textContent = `已恢复你刚才的会议「${last.title}」。` + (last.final ? '' : '还没出最终结果，');
+    $('btn-restore-final').hidden = !!last.final;
+    $('restore-note').hidden = false;
   } else {
     const n = Number(params.get('sample'));
     loadSample(Number.isInteger(n) && n >= 0 && n < F.SAMPLES.length ? (sampleIdx = n) : 0);

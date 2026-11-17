@@ -43,7 +43,7 @@ details.settings textarea{min-height:90px;font-size:13px}
 @media (max-width:640px){.final-top{grid-template-columns:1fr}}
 .final-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px}
 @media (max-width:820px){.final-grid{grid-template-columns:1fr}}
-#final-panel{border:2px solid var(--ink)}
+#final-panel{border:2px solid var(--ink);scroll-margin-top:72px}
 .final-grid ul{margin:6px 0 0;padding-left:1.2em}
 .source{font-size:12px;color:var(--muted)}
 .review-title{font-family:var(--display);font-weight:400;font-size:30px;line-height:1.2;margin:0;text-wrap:balance}
@@ -56,6 +56,7 @@ details.settings textarea{min-height:90px;font-size:13px}
 .progress{font-size:14px;color:var(--muted)}
 .live{align-self:start;scroll-margin-top:72px}
 @media (pointer:coarse){details.settings textarea{font-size:16px}}
+html.recording,html.recording body{overscroll-behavior-y:none} /* 录音时禁用下拉刷新，免得误触把页面刷掉 */
 
 /* 手机：录音按钮和实时得分固定在屏幕底部，录音时不用来回滚 */
 .dock{display:none}
@@ -88,6 +89,7 @@ details.settings textarea{min-height:90px;font-size:13px}
     <div class="row"><span class="hint" id="saved-at"></span><button class="btn small quiet" id="btn-save">保存到历史</button><button class="btn small" id="btn-new">新的一场</button></div>
   </section>
 
+  <div class="notice" id="restore-note" hidden><span id="restore-text"></span><button class="btn small primary" id="btn-restore-final" style="margin:0 6px">出最终结果</button>要开新的会，点「新的一场」。</div>
   <div class="notice" id="demo-note" hidden>这是一场<b>示例会议</b>，AI 判断和点评是演示数据。点「开始录音」或「清空」就能测你自己的会。</div>
 
   <div class="grid2">
@@ -195,7 +197,7 @@ details.settings textarea{min-height:90px;font-size:13px}
 <div class="dock" id="dock">
   <button class="btn recbtn" id="dock-rec" aria-pressed="false"><span class="dot"></span><span id="dock-rec-label">开始录音</span></button>
   <span class="rec-time" id="dock-time">00:00</span>
-  <a class="dock-score" href="#live" aria-label="查看实时得分"><i class="lv-dot" id="dock-dot"></i><b id="dock-pct">0%</b><span id="dock-grade">等待开口</span></a>
+  <a class="dock-score" id="dock-score" href="#live" aria-label="查看实时得分"><i class="lv-dot" id="dock-dot"></i><b id="dock-pct">0%</b><span id="dock-grade">等待开口</span></a>
 </div>
 
 <footer class="site-foot gutter"><div class="wrap">
