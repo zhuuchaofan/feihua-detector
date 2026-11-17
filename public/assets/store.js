@@ -2,6 +2,7 @@
 (function () {
   const KEY = 'feihua.history.v1';
   const SETTINGS = 'feihua.settings.v1';
+  const CURRENT = 'feihua.current.v1'; // 检测台上正在进行的那场会，页面被重载后据此恢复
   const MAX = 60;
 
   function read(key, fallback) {
@@ -36,6 +37,12 @@
     },
     parseIgnore(text) { return String(text || '').split(/[\n,，\s]+/).map((x) => x.trim()).filter(Boolean); },
   };
+
+  /** 检测台当前这场会的 id；12 小时内有效，过期就当没有 */
+  Store.currentInfo = () => { const c = read(CURRENT, null); return c && c.id && Date.now() - c.at < 12 * 3600 * 1000 ? c : null; };
+  Store.current = () => (Store.currentInfo() || {}).id || null;
+  /** extra 目前只有 { pendingFinal: true }：点了停止、最终结果还没出完 */
+  Store.setCurrent = (id, extra) => write(CURRENT, id ? Object.assign({ id, at: Date.now() }, extra || {}) : null);
 
   // AI 判断以 [key, w, tag, why] 数组形式存，省空间
   Store.packAi = (map) => [...map.entries()].map(([k, v]) => [k, v.w, v.tag, v.why]);

@@ -29,7 +29,8 @@ h1.page{font-family:var(--display);font-weight:400;font-size:clamp(32px,5vw,44px
 @media (max-width:640px){.detail-top{grid-template-columns:1fr}}
 .review-title{font-family:var(--display);font-weight:400;font-size:28px;line-height:1.2;margin:0}
 .confirm{display:inline-flex;gap:6px;align-items:center;font-size:13px}
-@media (max-width:640px){.tools{flex:1 1 100%;flex-wrap:nowrap}.tools #q{flex:1;min-width:0}}
+/* 手机：搜索框和按钮排一行。用网格而不是 flex，iOS 上输入框在 flex 里缩不下去，会把按钮挤出屏幕 */
+@media (max-width:640px){.tools{flex:1 1 100%;display:grid;grid-template-columns:minmax(0,1fr) auto}.tools #q{width:100%;min-width:0}}
 </style>
 </head>
 <body>
