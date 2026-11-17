@@ -1,0 +1,9 @@
+{
+  "navigationFallback": { "rewrite": "/index.html", "exclude": ["/vendor/*", "/api/*"] },
+  "globalHeaders": {
+    "Permissions-Policy": "microphone=(self)",
+    "X-Content-Type-Options": "nosniff"
+  },
+  "mimeTypes": { ".js": "text/javascript" },
+  "platform": { "apiRuntime": "node:20" }
+}
