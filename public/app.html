@@ -61,8 +61,8 @@ html.recording,html.recording body{overscroll-behavior-y:none} /* 录音时禁�
 /* 手机：录音按钮和实时得分固定在屏幕底部，录音时不用来回滚 */
 .dock{display:none}
 @media (max-width:820px){
-  .meetbar>.row:first-child{flex:1 1 100%;flex-wrap:nowrap}
-  .meetbar input{flex:1;min-width:0;width:auto}
+  .meetbar>.row:first-child{flex:1 1 100%;display:grid;grid-template-columns:auto minmax(0,1fr)}
+  .meetbar input{width:100%;min-width:0}
   textarea#input{min-height:200px}
   .rec-main{display:none}
   .rec{padding:10px 12px}
