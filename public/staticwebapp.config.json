@@ -1,9 +1,11 @@
 {
   "routes": [
-    { "route": "/app", "rewrite": "/app.html" },
-    { "route": "/history", "rewrite": "/history.html" },
+    { "route": "/", "headers": { "Cache-Control": "no-cache" } },
+    { "route": "/app", "rewrite": "/app.html", "headers": { "Cache-Control": "no-cache" } },
+    { "route": "/history", "rewrite": "/history.html", "headers": { "Cache-Control": "no-cache" } },
     { "route": "/.auth/login/twitter", "statusCode": 404 },
-    { "route": "/assets/*", "headers": { "Cache-Control": "public, max-age=300" } },
+    { "route": "/assets/*", "headers": { "Cache-Control": "public, max-age=31536000, immutable" } },
+    { "route": "/fonts/*", "headers": { "Cache-Control": "public, max-age=2592000" } },
     { "route": "/vendor/*", "headers": { "Cache-Control": "public, max-age=604800, immutable" } }
   ],
   "responseOverrides": {
@@ -14,6 +16,6 @@
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "strict-origin-when-cross-origin"
   },
-  "mimeTypes": { ".js": "text/javascript", ".svg": "image/svg+xml", ".webmanifest": "application/manifest+json" },
+  "mimeTypes": { ".woff2": "font/woff2", ".js": "text/javascript", ".svg": "image/svg+xml", ".webmanifest": "application/manifest+json" },
   "platform": { "apiRuntime": "node:20" }
 }

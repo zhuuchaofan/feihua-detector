@@ -37,7 +37,7 @@
     if (!document.fonts) return;
     try {
       await Promise.race([
-        Promise.all(['40px "ZCOOL QingKe HuangYou"', '700 40px "JetBrains Mono"', '400 30px "Noto Sans SC"', '700 30px "Noto Sans SC"']
+        Promise.all(['40px "ZCOOL QingKe HuangYou"', '700 40px "JetBrains Mono"']
           .map((f) => document.fonts.load(f, '会议废话浓度化验单0123456789%'))),
         new Promise((r) => setTimeout(r, 2500)),
       ]);
@@ -53,7 +53,7 @@
     const g = c.getContext('2d');
     const ink = '#18212C', muted = '#5A6676', line = '#CDD4DD', paper = '#EEF1F5';
     const display = '"ZCOOL QingKe HuangYou","PingFang SC","Microsoft YaHei",sans-serif';
-    const body = '"Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif';
+    const body = 'system-ui,-apple-system,"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans CJK SC",sans-serif';
     const mono = '"JetBrains Mono",Menlo,Consolas,monospace';
     const lv = Math.max(0, F.levelOf(data.pct));
     const L = 80, R = W - 80;
