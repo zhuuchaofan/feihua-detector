@@ -44,7 +44,7 @@
     const items = q ? all.filter((r) => (r.title + '\n' + r.text).toLowerCase().includes(q)) : all;
     renderTrend(all);
     if (!all.length) {
-      $('list').innerHTML = `<div class="stack" style="gap:10px;padding:18px 4px"><div class="empty">还没有记录。录一场会，或者粘贴纪要后点「保存到历史」，就会出现在这里。</div><div class="row"><a class="btn primary small" href="/app">开始检测</a><a class="btn small" href="/app?sample=0">先看示例</a></div></div>`;
+      $('list').innerHTML = `<div class="stack" style="gap:10px;padding:18px 4px"><div class="empty">还没有记录。录一场会，或者粘贴纪要后点「保存到历史」，就会出现在这里。</div><div class="row"><a class="btn primary small" href="/app">开始检测</a></div></div>`;
       return;
     }
     if (!items.length) { $('list').innerHTML = '<div class="empty" style="padding:18px 4px">没有找到匹配的记录。</div>'; return; }

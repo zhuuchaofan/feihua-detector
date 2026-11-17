@@ -25,7 +25,6 @@
   const IS_IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   let result = null;     // 最近一次 analyze 的结果
   let livePartial = '', partialSpeaker = null;
-  let sampleIdx = 0;
 
   // ---------- 设置 ----------
   let settings = S.settings();
@@ -224,7 +223,7 @@
       Site.toast(text ? '内容太短，出不了最终结果' : '没有录到文字'); goFinal(); clearPending(); return;
     }
     if (!st.status.ai) { progress('AI 还没配置，只能看实时得分。'); clearPending(); return; }
-    finalizing = true; $('btn-ai').disabled = true; st.demo = false; $('demo-note').hidden = true;
+    finalizing = true; $('btn-ai').disabled = true; st.demo = false; 
     failed.clear(); updateDock(); goFinal();
     try {
       await judge(true);
@@ -303,7 +302,7 @@
   // ---------- 文本框和样例 ----------
   let typing;
   $('input').addEventListener('input', () => {
-    if (st.demo) { st.demo = false; $('demo-note').hidden = true; }
+    if (st.demo) { st.demo = false;  }
     clearTimeout(typing); typing = setTimeout(render, 200);
   });
   function reset(text, opts = {}) {
@@ -313,17 +312,11 @@
     failed.clear(); lastSpk = null; for (const k in nameMap) delete nameMap[k];
     $('names').hidden = true; $('names').querySelectorAll('label').forEach((l) => l.remove());
     $('title').value = opts.title || ''; $('saved-at').textContent = '';
-    $('input').value = text; $('demo-note').hidden = !st.demo; $('restore-note').hidden = true;
+    $('input').value = text; $('restore-note').hidden = true;
     pendingFinal = false; S.setCurrent(null);
     showClock(st.duration);
     render();
   }
-  function loadSample(i) {
-    const text = F.SAMPLES[i];
-    const demo = i === 0;
-    reset(text, { demo: true, title: '示例：' + ['周会', '干货站会', '年度战略会'][i], ai: demo ? F.demoFor(text) : new Map(), review: demo ? F.SAMPLE_DEMO.review : null });
-  }
-  $('btn-sample').addEventListener('click', () => { sampleIdx = (sampleIdx + 1) % F.SAMPLES.length; loadSample(sampleIdx); });
   $('btn-clear').addEventListener('click', () => { reset(''); $('input').focus(); });
   $('btn-new').addEventListener('click', () => {
     if ($('input').value.trim() && !st.demo && st.savedText !== $('input').value) save(true);
@@ -486,8 +479,8 @@
   const params = new URLSearchParams(location.search);
   const openId = params.get('open');
   const rec = openId && S.get(openId);
-  // 没指定打开哪场、也没要看示例时，恢复刚才那场会（页面被手机重载、误触下拉刷新都不怕）
-  const lastInfo = !rec && !params.has('sample') ? S.currentInfo() : null;
+  // 没指定打开哪场时，恢复刚才那场会（页面被手机重载、误触下拉刷新都不怕）
+  const lastInfo = !rec ? S.currentInfo() : null;
   const last = lastInfo && S.get(lastInfo.id);
   const resume = !!(last && lastInfo.pendingFinal && !last.final); // 停止录音时页面被重载了，接着出最终结果
   function openRecord(r) {
@@ -510,8 +503,7 @@
     $('btn-restore-final').hidden = !!last.final || resume;
     $('restore-note').hidden = false;
   } else {
-    const n = Number(params.get('sample'));
-    loadSample(Number.isInteger(n) && n >= 0 && n < F.SAMPLES.length ? (sampleIdx = n) : 0);
+    reset(''); // 不再放示例会议，打开就是空白的一场
   }
   // openRecord 已经把标记清掉了：只自动续一次，万一出结果时又被重载，就不会反复重试
   refreshStatus(0, resume ? () => {
