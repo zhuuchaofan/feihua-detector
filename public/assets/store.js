@@ -39,8 +39,10 @@
   };
 
   /** 检测台当前这场会的 id；12 小时内有效，过期就当没有 */
-  Store.current = () => { const c = read(CURRENT, null); return c && c.id && Date.now() - c.at < 12 * 3600 * 1000 ? c.id : null; };
-  Store.setCurrent = (id) => write(CURRENT, id ? { id, at: Date.now() } : null);
+  Store.currentInfo = () => { const c = read(CURRENT, null); return c && c.id && Date.now() - c.at < 12 * 3600 * 1000 ? c : null; };
+  Store.current = () => (Store.currentInfo() || {}).id || null;
+  /** extra 目前只有 { pendingFinal: true }：点了停止、最终结果还没出完 */
+  Store.setCurrent = (id, extra) => write(CURRENT, id ? Object.assign({ id, at: Date.now() }, extra || {}) : null);
 
   // AI 判断以 [key, w, tag, why] 数组形式存，省空间
   Store.packAi = (map) => [...map.entries()].map(([k, v]) => [k, v.w, v.tag, v.why]);

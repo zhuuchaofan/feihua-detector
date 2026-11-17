@@ -18,6 +18,11 @@
     status: { speech: false, ai: false, user: null, quota: null },
     savedText: null,
   };
+  // 点了停止、最终结果还没出完。iPhone 上浏览器偶尔在停止录音的瞬间把整页重载，
+  // 这个标记跟着“当前这场会”一起存下来，重载后接着把最终结果出完
+  let pendingFinal = false;
+  function clearPending() { if (!pendingFinal) return; pendingFinal = false; if (st.id) S.setCurrent(st.id); }
+  const IS_IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   let result = null;     // 最近一次 analyze 的结果
   let livePartial = '', partialSpeaker = null;
   let sampleIdx = 0;
@@ -51,11 +56,12 @@
   document.addEventListener('click', (e) => { if (e.target.closest('[data-login]')) Site.openLogin(); });
 
   let statusTimer;
-  function refreshStatus(delay = 0) {
+  function refreshStatus(delay = 0, then) {
     clearTimeout(statusTimer);
     statusTimer = setTimeout(async () => {
       try { st.status = await api('/api/status'); } catch { st.status = { speech: false, ai: false, user: null, quota: null, offline: true }; }
       renderQuota();
+      if (then) then();
     }, delay);
   }
   function renderQuota() {
@@ -215,9 +221,9 @@
     const goFinal = () => $('final-panel').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
     if (text.length < 20) {
       progress(text ? '内容太短（不到 20 个字），多录几句再来。' : '没有录到文字，出不了最终结果。如果录音时一直没出字，检查一下浏览器的麦克风权限。');
-      Site.toast(text ? '内容太短，出不了最终结果' : '没有录到文字'); goFinal(); return;
+      Site.toast(text ? '内容太短，出不了最终结果' : '没有录到文字'); goFinal(); clearPending(); return;
     }
-    if (!st.status.ai) { progress('AI 还没配置，只能看实时得分。'); return; }
+    if (!st.status.ai) { progress('AI 还没配置，只能看实时得分。'); clearPending(); return; }
     finalizing = true; $('btn-ai').disabled = true; st.demo = false; $('demo-note').hidden = true;
     failed.clear(); updateDock(); goFinal();
     try {
@@ -230,13 +236,14 @@
       if (rv.title && !$('title').value.trim()) $('title').value = rv.title;
       progress('');
       finalizing = false;
+      $('restore-note').hidden = true;
       render();
       save(true);
       goFinal();
     } catch (err) {
       progress(quotaHint(err));
       Site.toast('最终结果没出来，原因写在「最终」里');
-    } finally { finalizing = false; $('btn-ai').disabled = false; updateDock(); refreshStatus(500); }
+    } finally { finalizing = false; $('btn-ai').disabled = false; clearPending(); updateDock(); refreshStatus(500); }
   }
   $('btn-ai').addEventListener('click', () => { st.review = null; finalize(); });
   $('btn-restore-final').addEventListener('click', () => { $('restore-note').hidden = true; st.review = null; finalize(); });
@@ -259,7 +266,7 @@
       topWords: Object.entries(result.wc).sort((a, b) => b[1] - a[1]).slice(0, 6),
     };
     const ok = S.save(rec);
-    if (ok) S.setCurrent(st.id);
+    if (ok) S.setCurrent(st.id, pendingFinal ? { pendingFinal: true } : null);
     st.savedText = text;
     $('saved-at').textContent = ok ? `已保存 ${Sh.fmtDate(Date.now()).slice(11)}` : '浏览器存储不可用，没能保存';
     if (!silent) Site.toast(ok ? '已保存到历史记录' : '没能保存：浏览器存储不可用');
@@ -307,7 +314,7 @@
     $('names').hidden = true; $('names').querySelectorAll('label').forEach((l) => l.remove());
     $('title').value = opts.title || ''; $('saved-at').textContent = '';
     $('input').value = text; $('demo-note').hidden = !st.demo; $('restore-note').hidden = true;
-    S.setCurrent(null);
+    pendingFinal = false; S.setCurrent(null);
     showClock(st.duration);
     render();
   }
@@ -420,6 +427,9 @@
       cfg.speechRecognitionLanguage = 'zh-CN';
       cfg.setProperty(sdk.PropertyId.SpeechServiceResponse_DiarizeIntermediateResults, 'true');
       const audio = sdk.AudioConfig.fromDefaultMicrophoneInput();
+      // iPhone/iPad 上不用 AudioWorklet，改用老的 ScriptProcessor 取音：
+      // 停止录音时 SDK 会关掉带 AudioWorklet 的音频上下文，疑似会让 iOS 的浏览器内核崩掉并重载整页
+      if (IS_IOS) { try { audio.setProperty('MICROPHONE-WorkletSourceUrl', 'ignore'); } catch {} }
       recog = new sdk.ConversationTranscriber(cfg, audio);
       recog.transcribing = (_, e) => {
         livePartial = e.result.text || ''; partialSpeaker = e.result.speakerId || null;
@@ -452,7 +462,12 @@
     r.stopTranscribingAsync(done, done);
   }
   function toggleRec() {
-    if (recState === 'listening') { stopRec(); return; }
+    if (recState === 'listening') {
+      // 先存一份并记下“要出最终结果”，万一停止的瞬间页面被重载，回来能接着出
+      pendingFinal = !!(settings.autoJudge && st.status.ai);
+      save(true);
+      stopRec(); return;
+    }
     if (recState !== 'idle') return;
     if (st.demo) reset('');
     lastSpk = null;
@@ -472,8 +487,9 @@
   const openId = params.get('open');
   const rec = openId && S.get(openId);
   // 没指定打开哪场、也没要看示例时，恢复刚才那场会（页面被手机重载、误触下拉刷新都不怕）
-  const lastId = !rec && !params.has('sample') && S.current();
-  const last = lastId && S.get(lastId);
+  const lastInfo = !rec && !params.has('sample') ? S.currentInfo() : null;
+  const last = lastInfo && S.get(lastInfo.id);
+  const resume = !!(last && lastInfo.pendingFinal && !last.final); // 停止录音时页面被重载了，接着出最终结果
   function openRecord(r) {
     reset(r.text, { title: r.title, ai: S.unpackAi(r.ai), review: r.review, duration: r.duration });
     st.id = r.id; st.at = r.at; st.savedText = r.text;
@@ -487,12 +503,19 @@
     // 说清楚是哪一场：开始时间 + 录了多久，免得以为是以前的旧会
     const dur = last.duration ? (last.duration < 60 ? Math.round(last.duration) + ' 秒' : Sh.fmtDur(last.duration)) : '';
     $('saved-at').textContent = '接着上次';
-    $('restore-text').textContent = `这是你 ${Sh.fmtDate(last.at).slice(11, 16)} 开始的那场会${dur ? `（录了 ${dur}）` : ''}，页面重新打开后接着显示在这里。` + (last.final ? '' : '还没出最终结果，');
-    $('btn-restore-final').hidden = !!last.final;
+    const which = `这是你 ${Sh.fmtDate(last.at).slice(11, 16)} 开始的那场会${dur ? `（录了 ${dur}）` : ''}`;
+    $('restore-text').textContent = resume
+      ? `${which}。停止录音时浏览器把页面重新加载了一下，文字都在，正在接着出最终结果…`
+      : `${which}，页面重新打开后接着显示在这里。` + (last.final ? '' : '还没出最终结果，');
+    $('btn-restore-final').hidden = !!last.final || resume;
     $('restore-note').hidden = false;
   } else {
     const n = Number(params.get('sample'));
     loadSample(Number.isInteger(n) && n >= 0 && n < F.SAMPLES.length ? (sampleIdx = n) : 0);
   }
-  refreshStatus();
+  // openRecord 已经把标记清掉了：只自动续一次，万一出结果时又被重载，就不会反复重试
+  refreshStatus(0, resume ? () => {
+    if (st.status.ai && settings.autoJudge) finalize();
+    else { $('restore-text').textContent = $('restore-text').textContent.replace('正在接着出最终结果…', '还没出最终结果，'); $('btn-restore-final').hidden = false; }
+  } : null);
 })();
