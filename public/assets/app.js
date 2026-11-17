@@ -484,8 +484,10 @@
     $('saved-at').textContent = '来自历史记录';
   } else if (last) {
     openRecord(last);
-    $('saved-at').textContent = '已恢复';
-    $('restore-text').textContent = `已恢复你刚才的会议「${last.title}」。` + (last.final ? '' : '还没出最终结果，');
+    // 说清楚是哪一场：开始时间 + 录了多久，免得以为是以前的旧会
+    const dur = last.duration ? (last.duration < 60 ? Math.round(last.duration) + ' 秒' : Sh.fmtDur(last.duration)) : '';
+    $('saved-at').textContent = '接着上次';
+    $('restore-text').textContent = `这是你 ${Sh.fmtDate(last.at).slice(11, 16)} 开始的那场会${dur ? `（录了 ${dur}）` : ''}，页面重新打开后接着显示在这里。` + (last.final ? '' : '还没出最终结果，');
     $('btn-restore-final').hidden = !!last.final;
     $('restore-note').hidden = false;
   } else {
