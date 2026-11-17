@@ -28,21 +28,30 @@ img{max-width:100%}
 .gutter{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 .wrap{max-width:1120px;margin:0 auto}
 
-/* 顶栏 */
-.site-head{position:sticky;top:0;z-index:20;background:var(--paper);border-bottom:1px solid var(--line)}
-.site-head .wrap{display:flex;align-items:center;gap:8px 20px;min-height:56px;flex-wrap:wrap}
-.brand{display:inline-flex;align-items:center;gap:8px;color:var(--ink);text-decoration:none;font-family:var(--display);font-size:22px;line-height:1}
+/* 顶栏：手机上也只占一行（品牌只留图标，账号收成头像） */
+.site-head{position:sticky;top:0;z-index:20;background:var(--paper);border-bottom:1px solid var(--line);padding-top:env(safe-area-inset-top,0px)}
+.site-head .wrap{display:flex;align-items:center;gap:8px 20px;min-height:56px}
+.brand{display:inline-flex;align-items:center;gap:8px;color:var(--ink);text-decoration:none;font-family:var(--display);font-size:22px;line-height:1;flex:none}
 .brand img{width:28px;height:28px}
-.nav{display:flex;gap:4px;flex-wrap:wrap}
-.nav a{color:var(--muted);text-decoration:none;padding:6px 10px;border-radius:4px;font-size:14px}
+.nav{display:flex;gap:4px;min-width:0}
+.nav a{color:var(--muted);text-decoration:none;padding:6px 10px;border-radius:4px;font-size:14px;white-space:nowrap}
 .nav a:hover{color:var(--ink);background:var(--soft)}
 .nav a[aria-current="page"]{color:var(--ink);font-weight:700}
-.auth{margin-left:auto;position:relative;display:flex;align-items:center;gap:8px;font-size:14px}
-.auth .who{color:var(--muted);max-width:12em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.menu{position:absolute;right:0;top:calc(100% + 6px);background:var(--card);border:1px solid var(--line);border-radius:6px;padding:6px;display:flex;flex-direction:column;min-width:190px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:30}
-.menu a{color:var(--ink);text-decoration:none;padding:8px 10px;border-radius:4px}
+.auth{margin-left:auto;position:relative;display:flex;align-items:center;gap:8px;font-size:14px;flex:none}
+.avatar{width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--ink);font:700 15px/1 var(--body);display:inline-grid;place-items:center;cursor:pointer;padding:0}
+.avatar:hover,.avatar[aria-expanded="true"]{border-color:var(--accent);color:var(--accent)}
+.menu{position:absolute;right:0;top:calc(100% + 6px);background:var(--card);border:1px solid var(--line);border-radius:6px;padding:6px;display:flex;flex-direction:column;min-width:200px;max-width:min(300px,calc(100vw - 32px));box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:30}
+.menu a{color:var(--ink);text-decoration:none;padding:10px;border-radius:4px}
 .menu a:hover{background:var(--soft)}
 .menu p{margin:4px 10px 6px;font-size:12px;color:var(--muted)}
+.menu .me-name{margin:0 10px 4px;font-weight:700;overflow-wrap:anywhere}
+@media (max-width:640px){
+  .site-head .wrap{gap:6px;min-height:52px}
+  .brand-name{display:none}
+  .nav{gap:0}
+  .nav a{padding:10px 8px;font-size:15px}
+}
+@media (max-width:350px){.nav a{padding:10px 5px}}
 
 /* 通用组件 */
 main{padding-block:24px 56px}
@@ -110,5 +119,13 @@ td.num{font-family:var(--mono);text-align:right;font-variant-numeric:tabular-num
 
 .site-foot{border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
 .site-foot .wrap{display:flex;flex-wrap:wrap;gap:6px 20px;justify-content:space-between;padding-block:18px}
+
+/* 触屏：按钮至少 40px 高好点按；输入框字号 16px，iOS 聚焦时才不会自动放大页面 */
+@media (pointer:coarse){
+  .btn{min-height:40px;padding-inline:14px}
+  .btn.small{min-height:36px;font-size:14px}
+  .seg button{min-height:34px}
+  input[type="text"],input[type="search"],textarea{font-size:16px}
+}
 
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}

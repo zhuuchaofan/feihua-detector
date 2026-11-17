@@ -51,7 +51,8 @@ api/                        Azure Functions（Node 20，v4 编程模型）
 | 名称 | 说明 |
 |---|---|
 | `SPEECH_KEY` / `SPEECH_REGION` | Azure 语音服务密钥和区域（如 `eastasia`） |
-| `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` | OpenAI 兼容的大模型，DeepSeek 填 `https://api.deepseek.com`、`deepseek-chat` |
+| `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` | OpenAI 兼容的大模型，DeepSeek 填 `https://api.deepseek.com`、`deepseek-flash`（程序会自动关掉它的思考模式） |
+| `LLM_EXTRA_BODY` | 可选，JSON 对象，原样并进请求体。比如想让 DeepSeek 开思考模式就填 `{"thinking":{"type":"enabled"}}`，但小心超过 45 秒时限 |
 | `AOAI_ENDPOINT` / `AOAI_KEY` / `AOAI_DEPLOYMENT` | 可选，改用 Azure OpenAI（大陆个人订阅开不了） |
 
 ## 部署

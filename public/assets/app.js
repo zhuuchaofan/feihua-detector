@@ -89,6 +89,9 @@
     const lv = F.LEVELS[Math.max(0, F.levelOf(r.livePct))];
     $('pct').innerHTML = (r.total ? Math.round(r.livePct) : 0) + '<small>%</small>';
     $('grade').textContent = r.total ? lv.name : '等待开口';
+    $('dock-pct').textContent = (r.total ? Math.round(r.livePct) : 0) + '%';
+    $('dock-grade').textContent = r.total ? lv.name.split(' · ')[0] : '等待开口';
+    $('dock-dot').className = 'lv-dot' + (r.total ? ' lv' + (Math.max(0, F.levelOf(r.livePct)) + 1) : '');
     $('needle').style.left = Math.min(100, r.total ? r.livePct : 0) + '%';
     $('roast').textContent = r.total ? lv.roasts[r.total % lv.roasts.length] : '开始录音或粘贴一段会议纪要，看看这场会有多少水分。';
     const cov = r.coverage;
@@ -277,6 +280,7 @@
     $('names').hidden = true; $('names').querySelectorAll('label').forEach((l) => l.remove());
     $('title').value = opts.title || ''; $('saved-at').textContent = '';
     $('input').value = text; $('demo-note').hidden = !st.demo;
+    showClock(st.duration);
     render();
   }
   function loadSample(i) {
@@ -297,6 +301,7 @@
   const nameMap = {};
   const reEsc = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const fmtClock = (s) => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(Math.floor(s % 60)).padStart(2, '0');
+  function showClock(sec) { $('rec-time').textContent = $('dock-time').textContent = fmtClock(sec); }
 
   function nameOf(id) {
     const m = /(\d+)$/.exec(id || '');
@@ -330,12 +335,12 @@
   }
   function setRecUI(state, msg) {
     const was = recState; recState = state;
-    $('btn-rec').setAttribute('aria-pressed', state === 'idle' ? 'false' : 'true');
-    $('rec-label').textContent = state === 'starting' ? '正在连接…' : state === 'listening' ? '停止录音' : state === 'finishing' ? '收尾中…' : '开始录音';
+    const label = state === 'starting' ? '正在连接…' : state === 'listening' ? '停止录音' : state === 'finishing' ? '收尾中…' : '开始录音';
+    for (const [b, l] of [['btn-rec', 'rec-label'], ['dock-rec', 'dock-rec-label']]) { $(b).setAttribute('aria-pressed', state === 'idle' ? 'false' : 'true'); $(l).textContent = label; }
     $('rec-state').textContent = state === 'listening' ? '录音中，边说边打分' : state === 'idle' ? (result && result.total ? '已停止' : '还没开始录音') : '…';
     if (state === 'listening' && !timer) {
       recStart = Date.now();
-      timer = setInterval(() => { $('rec-time').textContent = fmtClock(st.duration + (Date.now() - recStart) / 1000); }, 500);
+      timer = setInterval(() => showClock(st.duration + (Date.now() - recStart) / 1000), 500);
       if (settings.autoJudge && st.status.ai) judgeTimer = setInterval(() => { judge(false).catch((e) => progress(quotaHint(e))); }, 6000);
     }
     if (state === 'idle') {
@@ -397,13 +402,15 @@
     const done = () => { try { r.close(); } catch {} recog = null; stopping = false; setRecUI('idle', msg); };
     r.stopTranscribingAsync(done, done);
   }
-  $('btn-rec').addEventListener('click', () => {
+  function toggleRec() {
     if (recState === 'listening') { stopRec(); return; }
     if (recState !== 'idle') return;
     if (st.demo) reset('');
     lastSpk = null;
     startRec();
-  });
+  }
+  $('btn-rec').addEventListener('click', toggleRec);
+  $('dock-rec').addEventListener('click', toggleRec); // 手机底部那颗
   window.addEventListener('beforeunload', (e) => { if (recState !== 'idle') { e.preventDefault(); e.returnValue = ''; } });
 
   // ---------- 启动 ----------

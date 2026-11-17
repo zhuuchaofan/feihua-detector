@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>检测台 · 会议废话浓度检测器</title>
 <meta name="description" content="开会时打开它，边说边转写，实时测出每句话的废话浓度，会后 AI 出化验单。">
-<meta name="theme-color" content="#18212C">
+<meta name="theme-color" content="#EEF1F5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#11151B" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
 <link rel="manifest" href="/assets/site.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -15,6 +16,7 @@
 <style>
 .meetbar{gap:10px 16px}
 .meetbar input{width:min(22em,60vw);font-size:16px;font-weight:500;background:var(--card)}
+.meetbar .label{flex:none}
 .notice{background:var(--card);border:1px dashed var(--ink);border-radius:6px;padding:10px 14px;font-size:14px}
 textarea#input{min-height:300px}
 .rec{border:1px dashed var(--line);border-radius:4px;padding:12px;display:flex;flex-direction:column;gap:10px;background:var(--paper)}
@@ -52,7 +54,28 @@ details.settings textarea{min-height:90px;font-size:13px}
 .award{border:1px solid var(--line);border-radius:4px;padding:10px 12px}
 .award b{display:block;font-size:17px}
 .progress{font-size:14px;color:var(--muted)}
-.live{align-self:start}
+.live{align-self:start;scroll-margin-top:72px}
+@media (pointer:coarse){details.settings textarea{font-size:16px}}
+
+/* 手机：录音按钮和实时得分固定在屏幕底部，录音时不用来回滚 */
+.dock{display:none}
+@media (max-width:820px){
+  .meetbar>.row:first-child{flex:1 1 100%;flex-wrap:nowrap}
+  .meetbar input{flex:1;min-width:0;width:auto}
+  textarea#input{min-height:200px}
+  .rec-main{display:none}
+  .rec{padding:10px 12px}
+  .dock{display:flex;align-items:center;gap:10px;position:fixed;left:0;right:0;bottom:0;z-index:25;background:var(--card);border-top:1px solid var(--line);box-shadow:0 -6px 20px rgba(0,0,0,.08);
+    padding:10px max(16px,env(safe-area-inset-right,0px)) calc(10px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+  .dock .recbtn{min-height:44px;padding-inline:16px;flex:none}
+  .dock .rec-time{flex:none}
+  .dock-score{margin-left:auto;display:flex;align-items:center;gap:8px;min-width:0;color:var(--ink);text-decoration:none}
+  .dock-score b{font-family:var(--mono);font-size:24px;font-variant-numeric:tabular-nums;line-height:1}
+  .dock-score span{font-family:var(--display);font-size:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  body{padding-bottom:calc(66px + env(safe-area-inset-bottom,0px))}
+  .toast{bottom:calc(80px + env(safe-area-inset-bottom,0px))}
+}
+@media (max-width:360px){.dock .rec-time{display:none}}
 </style>
 </head>
 <body>
@@ -71,7 +94,7 @@ details.settings textarea{min-height:90px;font-size:13px}
     <section class="panel">
       <div class="label">录音 / 文字</div>
       <div class="rec" id="rec-box">
-        <div class="row">
+        <div class="row rec-main">
           <button class="btn recbtn" id="btn-rec" aria-pressed="false"><span class="dot"></span><span id="rec-label">开始录音</span></button>
           <span class="rec-time" id="rec-time">00:00</span>
         </div>
@@ -104,7 +127,7 @@ details.settings textarea{min-height:90px;font-size:13px}
       </details>
     </section>
 
-    <section class="panel live" aria-live="polite">
+    <section class="panel live" id="live" aria-live="polite">
       <div class="row spread"><div class="label">实时</div><span class="hint" id="rec-state">还没开始录音</span></div>
       <div class="big"><div class="pct" id="pct">0<small>%</small></div><div class="grade" id="grade">—</div></div>
       <div class="gauge"><div class="needle" id="needle" style="left:0%"></div>
@@ -167,6 +190,12 @@ details.settings textarea{min-height:90px;font-size:13px}
   </section>
 </div>
 </main>
+
+<div class="dock" id="dock">
+  <button class="btn recbtn" id="dock-rec" aria-pressed="false"><span class="dot"></span><span id="dock-rec-label">开始录音</span></button>
+  <span class="rec-time" id="dock-time">00:00</span>
+  <a class="dock-score" href="#live" aria-label="查看实时得分"><i class="lv-dot" id="dock-dot"></i><b id="dock-pct">0%</b><span id="dock-grade">等待开口</span></a>
+</div>
 
 <footer class="site-foot gutter"><div class="wrap">
   <span>录音只用于实时转写，不保存音频；文字和历史只存在你的浏览器里。AI 判断会把文字发给 DeepSeek 处理。</span>
