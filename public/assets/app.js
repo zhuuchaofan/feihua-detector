@@ -111,20 +111,29 @@
   }
   function fmtMin(m) { return m < 1 ? Math.round(m * 60) + ' 秒' : m.toFixed(1) + ' 分钟'; }
 
+  // 最终分 = 说话的水分 60% + 会开得有没有用（会议体检）40%；旧记录没有体检时只看说话的水分
   function computeFinal() {
     const r = result, rv = st.review;
     if (!rv) return null;
-    if (r.aiPct != null && r.coverage.judged >= r.coverage.total * 0.8) return Math.round(0.2 * r.rulePct + 0.8 * r.aiPct);
-    return Math.round(0.4 * r.rulePct + 0.6 * (Number(rv.score) || 0));
+    const byAi = r.aiPct != null && r.coverage.judged >= r.coverage.total * 0.8;
+    const talk = byAi ? 0.2 * r.rulePct + 0.8 * r.aiPct : 0.4 * r.rulePct + 0.6 * (Number(rv.score) || 0);
+    const meet = F.checkupWaste(rv.checkup);
+    const how = byAi ? 'AI 逐句精读为主' : 'AI 通读打分为主';
+    return {
+      pct: Math.round(meet == null ? talk : 0.6 * talk + 0.4 * meet),
+      note: meet == null ? `说话的水分（${how}）` : `说话的水分占 60%（${how}），会议体检占 40%`,
+    };
   }
 
   function renderFinal() {
     const r = result, rv = st.review;
-    const pct = st.finalPct = computeFinal();
+    const fin = computeFinal(), pct = st.finalPct = fin.pct;
     const lv = F.LEVELS[Math.max(0, F.levelOf(pct))];
     $('final-pct').innerHTML = pct + '<small>%</small>';
     $('final-grade').textContent = lv.name;
-    $('final-note').textContent = r.aiPct != null ? `以 AI 逐句判断为主（80%），词库为辅（20%）` : `AI 通读打分 60% + 词库 40%`;
+    $('final-note').textContent = fin.note;
+    $('r-checkup').innerHTML = F.checkupHTML(rv.checkup);
+    $('r-checkup-box').hidden = !rv.checkup;
     $('r-title').textContent = rv.title || '';
     $('r-oneliner').textContent = rv.one_liner || rv.verdict || '';
     $('r-roast').textContent = rv.roast || '';
@@ -251,7 +260,7 @@
     try {
       const how = await Sh.shareCard({
         title: rec.title, at: rec.at, duration: rec.duration, pct: rec.pct, rulePct: result.rulePct, aiPct: result.aiPct,
-        oneLiner: rv.one_liner, king: rv.king, mvp: rv.mvp, judged: result.coverage.judged,
+        oneLiner: rv.one_liner, king: rv.king, mvp: rv.mvp, checkup: rv.checkup, judged: result.coverage.judged,
         topWords: Object.entries(result.wc).sort((a, b) => b[1] - a[1]).slice(0, 6),
       });
       if (how === 'downloaded') Site.toast('化验单图片已下载');
@@ -261,7 +270,8 @@
   $('btn-copy').addEventListener('click', () => {
     const rec = recForExport(), rv = rec.review || {};
     const lv = F.LEVELS[Math.max(0, F.levelOf(rec.pct))];
-    const msg = `【会议废话化验单】${rec.title}：废话浓度 ${Math.round(rec.pct)}%，${lv.name}。${rv.king && rv.king.name ? '废话之王：' + rv.king.name + '。' : ''}${rv.one_liner || ''}`;
+    const ck = rv.checkup ? '体检：' + F.CHECKUP.filter(([k]) => rv.checkup[k]).map(([k]) => `${k} ${rv.checkup[k].score}/5`).join('，') + '。' : '';
+    const msg = `【会议废话化验单】${rec.title}：废话浓度 ${Math.round(rec.pct)}%，${lv.name}。${ck}${rv.king && rv.king.name ? '废话之王：' + rv.king.name + '。' : ''}${rv.one_liner || ''}`;
     const done = () => Site.toast('已复制');
     try { navigator.clipboard.writeText(msg).then(done, () => Site.toast(msg, 6000)); } catch { Site.toast(msg, 6000); }
   });

@@ -145,7 +145,7 @@ details.settings textarea{min-height:90px;font-size:13px}
       <button class="btn primary" id="btn-ai">出最终结果</button>
     </div>
     <div class="progress" id="ai-progress" hidden></div>
-    <div id="final-empty" class="empty">停止录音后自动出最终结果：AI 读完整场会，给出最终得分、结论和待办、废话之王，再来一段毒舌点评。粘贴的纪要点右上角按钮。</div>
+    <div id="final-empty" class="empty">停止录音后自动出最终结果：AI 读完整场会，先做会议体检（推进了吗、问题解决了吗、说清楚了吗、进度正常吗），再给出最终得分、结论和待办、废话之王和一段毒舌点评。粘贴的纪要点右上角按钮。</div>
     <div id="final-out" class="stack" hidden>
       <div class="final-top">
         <div>
@@ -157,6 +157,7 @@ details.settings textarea{min-height:90px;font-size:13px}
           <p class="oneliner" id="r-oneliner"></p>
         </div>
       </div>
+      <div id="r-checkup-box"><div class="label" style="margin-bottom:8px">会议体检</div><div id="r-checkup"></div></div>
       <p class="roast" id="r-roast"></p>
       <div class="final-grid">
         <div class="stack" style="gap:14px">
