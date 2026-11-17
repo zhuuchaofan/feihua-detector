@@ -34,7 +34,7 @@ app.http('ai-judge', {
     if (!sentences.length) return { status: 400, jsonBody: { error: '没有要判断的句子' } };
     const ctx = (Array.isArray(body.context) ? body.context : []).slice(-8).map((x) => String(x).slice(0, 200));
 
-    const blocked = guard(request, 'ai-judge', sentences.length);
+    const blocked = await guard(request, 'ai-judge', sentences.length);
     if (blocked) return blocked;
     try {
       const out = await chatJSON(SYSTEM, JSON.stringify({ context: ctx, sentences }), { maxTokens: 60 * sentences.length + 200, temperature: 0.3, timeoutMs: 40000, log: (m) => context.log(m) });
@@ -48,7 +48,7 @@ app.http('ai-judge', {
       }
       return { jsonBody: { results: [...byI.values()] } };
     } catch (err) {
-      refund(request, 'ai-judge', sentences.length);
+      await refund(request, 'ai-judge', sentences.length);
       return { status: err.status || 502, jsonBody: { error: err.message || 'AI 出错了' } };
     }
   },

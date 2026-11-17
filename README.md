@@ -33,7 +33,9 @@ api/                        Azure Functions（Node 20，v4 编程模型）
   src/functions/aiReview.js      POST /api/ai-review     AI 会议体检 + 最终点评
   src/functions/status.js        GET  /api/status        功能开关、登录用户、今日剩余额度
   src/lib/llm.js                 大模型调用（DeepSeek 等 OpenAI 兼容接口，或 Azure OpenAI）
-  src/lib/guard.js               每日额度：未登录按 IP，登录后按账号
+  src/lib/guard.js               每日额度规则：未登录按 IP，登录后按账号
+  src/lib/identity.js            认出是谁：登录账号或客户端 IP
+  src/lib/counter.js             用量计数：Azure 表存储（没配时用内存）
 ```
 
 ## 额度
@@ -46,13 +48,14 @@ api/                        Azure Functions（Node 20，v4 编程模型）
 | AI 逐句精读 | 600 句 | 5000 句 | `QUOTA_AI_JUDGE_ANON` / `_USER` |
 | 最终结果 | 3 次 | 30 次 | `QUOTA_AI_REVIEW_ANON` / `_USER` |
 
-全站每日总上限可用 `SITE_DAILY_SPEECH_TOKEN`、`SITE_DAILY_AI_JUDGE`、`SITE_DAILY_AI_REVIEW` 调整。计数存在函数实例内存里，实例重启会清零，挡普通滥用够用；要精确计数可以换成 Azure Table Storage。
+全站每日总上限可用 `SITE_DAILY_SPEECH_TOKEN`、`SITE_DAILY_AI_JUDGE`、`SITE_DAILY_AI_REVIEW` 调整。配了 `QUOTA_STORAGE`（存储账户连接字符串）时，用量存在 Azure 表存储的 `quota` 表里（按日期分区），函数重启不清零、多台实例共用一份；没配时存在内存里，重启清零。表存储出故障时临时改用内存计数，网站不受影响。
 
 ## 环境变量（静态 Web 应用 → 环境变量）
 
 | 名称 | 说明 |
 |---|---|
 | `SPEECH_KEY` / `SPEECH_REGION` | Azure 语音服务密钥和区域（如 `eastasia`） |
+| `QUOTA_STORAGE` | 可选，存额度用量的 Azure 存储账户连接字符串 |
 | `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` | OpenAI 兼容的大模型，DeepSeek 填 `https://api.deepseek.com`、`deepseek-flash`（程序会自动关掉它的思考模式） |
 | `LLM_EXTRA_BODY` | 可选，JSON 对象，原样并进请求体。比如想让 DeepSeek 开思考模式就填 `{"thinking":{"type":"enabled"}}`，但小心超过 45 秒时限 |
 | `AOAI_ENDPOINT` / `AOAI_KEY` / `AOAI_DEPLOYMENT` | 可选，改用 Azure OpenAI（大陆个人订阅开不了） |

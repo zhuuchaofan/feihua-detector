@@ -72,7 +72,7 @@ app.http('ai-review', {
     const worst = (Array.isArray(body.worst) ? body.worst : []).slice(0, 5)
       .map((x) => `- ${String(x.s || '').slice(0, 12)}：“${String(x.t || '').slice(0, 120)}”（${String(x.why || '').slice(0, 24)}）`).join('\n');
 
-    const blocked = guard(request, 'ai-review');
+    const blocked = await guard(request, 'ai-review');
     if (blocked) return blocked;
     const user = [
       `规则词库算的废话浓度：${num(body.rulePct)}`,
@@ -87,7 +87,7 @@ app.http('ai-review', {
       review.checkup = cleanCheckup(review.checkup);
       return { jsonBody: review };
     } catch (err) {
-      refund(request, 'ai-review');
+      await refund(request, 'ai-review');
       return { status: err.status || 502, jsonBody: { error: err.message || 'AI 出错了' } };
     }
   },
