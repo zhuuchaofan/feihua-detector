@@ -23,6 +23,9 @@
   let pendingFinal = false;
   function clearPending() { if (!pendingFinal) return; pendingFinal = false; if (st.id) S.setCurrent(st.id); }
   const IS_IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const IS_ANDROID = /Android/i.test(navigator.userAgent);
+  // 手机停录时关掉 AudioWorklet 音频上下文，容易把标签页卡死/崩掉；改用 ScriptProcessor 取音
+  const AVOID_AUDIO_WORKLET = IS_IOS || IS_ANDROID;
   let result = null;     // 最近一次 analyze 的结果
   let livePartial = '', partialSpeaker = null;
 
@@ -399,7 +402,8 @@
         clearTimeout(autoTimer); autoTimer = null;
         save(true);
         if (msg && $('input').value.trim()) $('partial').textContent = msg + ' 录到的文字已保存，可以接着录，或者点「出最终结果」。';
-        if (!msg && settings.autoJudge && st.status.ai) finalize();
+        // 错开一拍再终审：停录瞬间主线程还在拆音频管线，立刻大渲染 + 打 API 在安卓上容易卡死
+        if (!msg && settings.autoJudge && st.status.ai) setTimeout(() => finalize(), 300);
       }
     }
   }
@@ -420,9 +424,9 @@
       cfg.speechRecognitionLanguage = 'zh-CN';
       cfg.setProperty(sdk.PropertyId.SpeechServiceResponse_DiarizeIntermediateResults, 'true');
       const audio = sdk.AudioConfig.fromDefaultMicrophoneInput();
-      // iPhone/iPad 上不用 AudioWorklet，改用老的 ScriptProcessor 取音：
-      // 停止录音时 SDK 会关掉带 AudioWorklet 的音频上下文，疑似会让 iOS 的浏览器内核崩掉并重载整页
-      if (IS_IOS) { try { audio.setProperty('MICROPHONE-WorkletSourceUrl', 'ignore'); } catch {} }
+      // 手机上不用 AudioWorklet，改用老的 ScriptProcessor 取音：
+      // 停止录音时 SDK 会关掉带 AudioWorklet 的音频上下文，iOS 会重载整页，安卓常卡死直至标签页崩溃
+      if (AVOID_AUDIO_WORKLET) { try { audio.setProperty('MICROPHONE-WorkletSourceUrl', 'ignore'); } catch {} }
       recog = new sdk.ConversationTranscriber(cfg, audio);
       recog.transcribing = (_, e) => {
         livePartial = e.result.text || ''; partialSpeaker = e.result.speakerId || null;
@@ -454,7 +458,14 @@
     if (!recog || stopping) { if (!recog && recState !== 'idle') setRecUI('idle', msg); return; }
     stopping = true; setRecUI('finishing');
     const r = recog;
-    const done = () => { try { r.close(); } catch {} recog = null; stopping = false; setRecUI('idle', msg); };
+    // 先停转写，再异步 close：同步 close + 立刻 render/finalize 会堵死安卓 Chrome 主线程
+    const done = () => {
+      recog = null; stopping = false;
+      setTimeout(() => {
+        try { r.close(); } catch {}
+        setTimeout(() => setRecUI('idle', msg), AVOID_AUDIO_WORKLET ? 120 : 0);
+      }, 0);
+    };
     r.stopTranscribingAsync(done, done);
   }
   function toggleRec() {
