@@ -234,7 +234,7 @@
     if (finalizing) return;
     const text = $('input').value.trim();
     const goFinal = () => {
-      if (automatic && IS_IOS) return;
+      if (automatic && (IS_IOS || IS_ANDROID)) return;
       $('final-panel').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
     };
     if (text.length < 20) {
@@ -242,6 +242,16 @@
       Site.toast(text ? '内容太短，出不了最终结果' : '没有录到文字'); goFinal(); clearPending(); return;
     }
     if (!st.status.ai) { progress('AI 还没配置，只能看实时得分。'); clearPending(); return; }
+    const quota = st.status.quota?.['ai-review'];
+    if (automatic && quota && quota.used >= quota.limit) {
+      const loggedIn = !!st.status.user;
+      const message = loggedIn ? '今天的最终报告额度已用完，明天 0 点重置' : '今天的游客报告额度已用完，登录后可以继续生成';
+      traceRecording('最终报告额度已用完，跳过自动生成');
+      progress(quotaHint({ code: 'quota', loggedIn, message }));
+      Site.toast(message);
+      clearPending();
+      return;
+    }
     finalizing = true; $('btn-ai').disabled = true; st.demo = false; 
     failed.clear(); updateDock(); goFinal();
     try {
@@ -558,7 +568,7 @@
     $('saved-at').textContent = '接着上次';
     const which = `这是你 ${Sh.fmtDate(last.at).slice(11, 16)} 开始的那场会${dur ? `（录了 ${dur}）` : ''}`;
     $('restore-text').textContent = resume
-      ? `${which}。停止录音时浏览器把页面重新加载了一下，文字都在，正在接着出最终结果…`
+      ? `${which}。本场文字已恢复，正在接着出最终结果…`
       : `${which}，页面重新打开后接着显示在这里。` + (last.final ? '' : '还没出最终结果，');
     $('btn-restore-final').hidden = !!last.final || resume;
     $('restore-note').hidden = false;
@@ -566,11 +576,14 @@
     reset(''); // 不再放示例会议，打开就是空白的一场
   }
   // openRecord 已经把标记清掉了：只自动续一次，万一出结果时又被重载，就不会反复重试
-  refreshStatus(0, resume ? () => {
+  refreshStatus(0, resume ? async () => {
     if (st.status.ai && settings.autoJudge) {
       traceRecording('恢复生成报告');
-      finalize({ automatic: true });
+      await finalize({ automatic: true });
     }
-    else { $('restore-text').textContent = $('restore-text').textContent.replace('正在接着出最终结果…', '还没出最终结果，'); $('btn-restore-final').hidden = false; }
+    if (st.id === last.id && !$('restore-note').hidden) {
+      $('restore-text').textContent = $('restore-text').textContent.replace('正在接着出最终结果…', '最终报告尚未生成。');
+      $('btn-restore-final').hidden = !st.status.ai;
+    }
   } : null);
 })();
