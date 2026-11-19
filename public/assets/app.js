@@ -230,10 +230,13 @@
 
   // ---------- 最终结果 ----------
   let finalizing = false;
-  async function finalize() {
+  async function finalize({ automatic = false } = {}) {
     if (finalizing) return;
     const text = $('input').value.trim();
-    const goFinal = () => $('final-panel').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+    const goFinal = () => {
+      if (automatic && IS_IOS) return;
+      $('final-panel').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+    };
     if (text.length < 20) {
       progress(text ? '内容太短（不到 20 个字），多录几句再来。' : '没有录到文字，出不了最终结果。如果录音时一直没出字，检查一下浏览器的麦克风权限。');
       Site.toast(text ? '内容太短，出不了最终结果' : '没有录到文字'); goFinal(); clearPending(); return;
@@ -246,7 +249,9 @@
       progress('AI 正在写最终点评…');
       const judged = result.sentences.filter((s) => s.ai);
       const worst = judged.slice().sort((a, b) => b.ai.w - a.ai.w).slice(0, 5).map((s) => ({ s: s.speaker || '', t: s.text, why: s.ai.why }));
+      traceRecording('发送最终报告请求');
       const rv = await api('/api/ai-review', { text: $('input').value, rulePct: result.rulePct, aiPct: result.aiPct, tags: result.tags, worst });
+      traceRecording('收到最终报告');
       st.review = rv; st.reviewFor = $('input').value;
       if (rv.title && !$('title').value.trim()) $('title').value = rv.title;
       progress('');
@@ -256,6 +261,7 @@
       save(true);
       goFinal();
     } catch (err) {
+      traceRecording('生成报告失败');
       progress(quotaHint(err));
       Site.toast('最终结果没出来，原因写在「最终」里');
     } finally { finalizing = false; $('btn-ai').disabled = false; clearPending(); updateDock(); refreshStatus(500); }
@@ -424,7 +430,7 @@
         // 错开一拍再终审：停录瞬间主线程还在拆音频管线，立刻大渲染 + 打 API 在安卓上容易卡死
         if (!msg && settings.autoJudge && st.status.ai) setTimeout(() => {
           traceRecording('开始生成报告');
-          finalize();
+          finalize({ automatic: true });
         }, 300);
       }
     }
@@ -487,7 +493,9 @@
       recog = null; stopping = false;
       setTimeout(() => {
         traceRecording('调用 SDK 关闭');
-        try { r.close(); } catch { traceRecording('SDK 关闭抛出错误'); }
+        try {
+          r.close(() => traceRecording('SDK 关闭完成'), () => traceRecording('SDK 关闭失败'));
+        } catch { traceRecording('SDK 关闭抛出错误'); }
         traceRecording('SDK 关闭调用返回');
         setTimeout(() => setRecUI('idle', msg), AVOID_AUDIO_WORKLET ? 120 : 0);
       }, 0);
@@ -527,7 +535,7 @@
     $('recording-debug').hidden = false;
     try { recordingSteps = (localStorage.getItem(recordingDebugKey) || '').split('\n').filter(Boolean); } catch {}
     const navigation = performance.getEntriesByType('navigation')[0];
-    traceRecording(navigation?.type === 'reload' ? '页面重新加载' : '页面打开');
+    traceRecording('页面启动（' + (navigation?.type || 'unknown') + '）');
   }
   const openId = params.get('open');
   const rec = openId && S.get(openId);
@@ -561,7 +569,7 @@
   refreshStatus(0, resume ? () => {
     if (st.status.ai && settings.autoJudge) {
       traceRecording('恢复生成报告');
-      finalize();
+      finalize({ automatic: true });
     }
     else { $('restore-text').textContent = $('restore-text').textContent.replace('正在接着出最终结果…', '还没出最终结果，'); $('btn-restore-final').hidden = false; }
   } : null);
