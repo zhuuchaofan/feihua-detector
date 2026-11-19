@@ -4,6 +4,19 @@
   const F = window.Feihua, S = window.Store, Sh = window.Share, Site = window.Site;
   const $ = (id) => document.getElementById(id);
   const esc = F.esc;
+  const params = new URLSearchParams(location.search);
+  const recordingDebug = params.get('debug') === 'recording';
+  const recordingDebugKey = 'feihua.recording-debug.v1';
+  let recordingSteps = [];
+
+  function traceRecording(step) {
+    if (!recordingDebug) return;
+    recordingSteps.push(new Date().toLocaleTimeString() + ' ' + step);
+    recordingSteps = recordingSteps.slice(-16);
+    const trace = recordingSteps.join('\n');
+    try { localStorage.setItem(recordingDebugKey, trace); } catch {}
+    $('recording-debug-log').textContent = trace;
+  }
 
   // ---------- 状态 ----------
   const st = {
@@ -323,6 +336,11 @@
   $('btn-clear').addEventListener('click', () => { reset(''); $('input').focus(); });
   $('btn-new').addEventListener('click', () => {
     if ($('input').value.trim() && !st.demo && st.savedText !== $('input').value) save(true);
+    const url = new URL(location.href);
+    if (url.searchParams.has('open')) {
+      url.searchParams.delete('open');
+      history.replaceState(history.state, '', url);
+    }
     reset(''); Site.toast('开始新的一场'); $('input').focus();
   });
 
@@ -401,9 +419,13 @@
       if (was === 'listening' || was === 'finishing') {
         clearTimeout(autoTimer); autoTimer = null;
         save(true);
+        traceRecording('停录收尾完成');
         if (msg && $('input').value.trim()) $('partial').textContent = msg + ' 录到的文字已保存，可以接着录，或者点「出最终结果」。';
         // 错开一拍再终审：停录瞬间主线程还在拆音频管线，立刻大渲染 + 打 API 在安卓上容易卡死
-        if (!msg && settings.autoJudge && st.status.ai) setTimeout(() => finalize(), 300);
+        if (!msg && settings.autoJudge && st.status.ai) setTimeout(() => {
+          traceRecording('开始生成报告');
+          finalize();
+        }, 300);
       }
     }
   }
@@ -446,6 +468,7 @@
       renew();
       await new Promise((ok, fail) => recog.startTranscribingAsync(ok, fail));
       setRecUI('listening');
+      traceRecording('录音已开始');
       $('partial').textContent = '开始说吧，我在听。';
     } catch (err) {
       const m = String(err && (err.message || err));
@@ -459,17 +482,22 @@
     stopping = true; setRecUI('finishing');
     const r = recog;
     // 先停转写，再异步 close：同步 close + 立刻 render/finalize 会堵死安卓 Chrome 主线程
-    const done = () => {
+    const done = (step) => {
+      traceRecording(step);
       recog = null; stopping = false;
       setTimeout(() => {
-        try { r.close(); } catch {}
+        traceRecording('调用 SDK 关闭');
+        try { r.close(); } catch { traceRecording('SDK 关闭抛出错误'); }
+        traceRecording('SDK 关闭调用返回');
         setTimeout(() => setRecUI('idle', msg), AVOID_AUDIO_WORKLET ? 120 : 0);
       }, 0);
     };
-    r.stopTranscribingAsync(done, done);
+    traceRecording('调用 SDK 停止转写');
+    r.stopTranscribingAsync(() => done('SDK 停止转写成功'), () => done('SDK 停止转写失败'));
   }
   function toggleRec() {
     if (recState === 'listening') {
+      traceRecording('点击停止录音');
       // 先存一份并记下“要出最终结果”，万一停止的瞬间页面被重载，回来能接着出
       pendingFinal = !!(settings.autoJudge && st.status.ai);
       save(true);
@@ -478,6 +506,8 @@
     if (recState !== 'idle') return;
     if (st.demo) reset('');
     lastSpk = null;
+    recordingSteps = [];
+    traceRecording('点击开始录音');
     startRec();
   }
   $('btn-rec').addEventListener('click', toggleRec);
@@ -486,11 +516,19 @@
   // 切到别的 App、锁屏、关页面之前立刻存一份；回到页面时重新保持常亮
   const flush = () => { if (recState !== 'idle' && $('input').value !== st.savedText) save(true); };
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flush(); else if (recState === 'listening') keepAwake(true); });
-  window.addEventListener('pagehide', flush);
+  window.addEventListener('pagehide', () => {
+    if (recordingSteps.length) traceRecording('页面离开');
+    flush();
+  });
 
   // ---------- 启动 ----------
   applySettings();
-  const params = new URLSearchParams(location.search);
+  if (recordingDebug) {
+    $('recording-debug').hidden = false;
+    try { recordingSteps = (localStorage.getItem(recordingDebugKey) || '').split('\n').filter(Boolean); } catch {}
+    const navigation = performance.getEntriesByType('navigation')[0];
+    traceRecording(navigation?.type === 'reload' ? '页面重新加载' : '页面打开');
+  }
   const openId = params.get('open');
   const rec = openId && S.get(openId);
   // 没指定打开哪场时，恢复刚才那场会（页面被手机重载、误触下拉刷新都不怕）
@@ -521,7 +559,10 @@
   }
   // openRecord 已经把标记清掉了：只自动续一次，万一出结果时又被重载，就不会反复重试
   refreshStatus(0, resume ? () => {
-    if (st.status.ai && settings.autoJudge) finalize();
+    if (st.status.ai && settings.autoJudge) {
+      traceRecording('恢复生成报告');
+      finalize();
+    }
     else { $('restore-text').textContent = $('restore-text').textContent.replace('正在接着出最终结果…', '还没出最终结果，'); $('btn-restore-final').hidden = false; }
   } : null);
 })();
